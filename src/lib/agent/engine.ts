@@ -22,36 +22,67 @@ export async function runAgent(
 ): Promise<AgentRunResult> {
   const systemPrompt = buildSystemPrompt(config);
 
+  const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
+
+  // Build alternating user/assistant messages (API requirement)
   const contextMessages: Array<{
     role: "user" | "assistant";
     content: string;
   }> = [];
 
-  const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
-
   for (const m of recentMessages) {
-    if (m.role === "contact") {
-      contextMessages.push({ role: "user", content: m.content });
-    } else if (m.role === "agent" || m.role === "human") {
-      contextMessages.push({
-        role: "assistant",
-        content: JSON.stringify({
-          action: "reply",
-          message: m.content,
-          reason_code: "greeting",
-          handoff_reason: null,
-          confidence: 0.9,
-        }),
-      });
+    const role: "user" | "assistant" =
+      m.role === "contact" ? "user" : "assistant";
+
+    // Skip system messages
+    if (m.role === "system") continue;
+
+    const content =
+      role === "assistant"
+        ? JSON.stringify({
+            action: "reply",
+            message: m.content,
+            reason_code: "greeting",
+            handoff_reason: null,
+            confidence: 0.9,
+          })
+        : m.content;
+
+    // Merge consecutive same-role messages
+    const last = contextMessages[contextMessages.length - 1];
+    if (last && last.role === role) {
+      if (role === "user") {
+        last.content += "\n" + content;
+      } else {
+        last.content = content;
+      }
+    } else {
+      contextMessages.push({ role, content });
     }
   }
 
+  // Must end with user message
   if (
     contextMessages.length === 0 ||
     contextMessages[contextMessages.length - 1].role !== "user"
   ) {
     throw new Error("Last message must be from contact");
   }
+
+  // Must start with user message
+  if (contextMessages[0].role === "assistant") {
+    contextMessages.shift();
+  }
+
+  console.log(
+    "[agent] Sending",
+    contextMessages.length,
+    "messages to Claude",
+  );
+  console.log(
+    "[agent] Roles:",
+    contextMessages.map((m) => m.role).join(" → "),
+  );
 
   const start = Date.now();
 
@@ -63,12 +94,25 @@ export async function runAgent(
   });
 
   const latencyMs = Date.now() - start;
-  const rawOutput =
-    response.content[0]?.type === "text" ? response.content[0].text : "";
+
+  console.log("[agent] Response stop_reason:", response.stop_reason);
+  console.log("[agent] Response content blocks:", response.content.length);
+
+  let rawOutput = "";
+  for (const block of response.content) {
+    if (block.type === "text") {
+      rawOutput += block.text;
+    }
+  }
+
+  console.log("[agent] Raw output length:", rawOutput.length);
+  if (rawOutput.length < 500) {
+    console.log("[agent] Raw output:", rawOutput);
+  }
+
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
 
-  // Try to parse as JSON
   const decision = parseDecision(rawOutput);
 
   return {
@@ -88,11 +132,15 @@ function parseDecision(rawOutput: string): AgentDecision {
     if (parsed.success) {
       return parsed.data;
     }
-  } catch {
-    // fall through to fallback
+    console.log(
+      "[agent] Zod validation failed:",
+      parsed.error.issues.map((i) => i.message),
+    );
+  } catch (e) {
+    console.log("[agent] JSON extraction attempt 1 failed:", e);
   }
 
-  // Attempt 2: maybe the JSON is valid but has extra fields or minor issues
+  // Attempt 2: loose JSON parsing
   try {
     const jsonStr = extractJson(rawOutput);
     const obj = JSON.parse(jsonStr);
@@ -107,28 +155,37 @@ function parseDecision(rawOutput: string): AgentDecision {
         confidence: typeof obj.confidence === "number" ? obj.confidence : 0.7,
       };
     }
-  } catch {
-    // fall through to text fallback
+  } catch (e) {
+    console.log("[agent] JSON extraction attempt 2 failed:", e);
   }
 
-  // Attempt 3: plain text fallback — use the response as-is
-  if (rawOutput.trim().length > 0) {
-    let cleanText = rawOutput.trim();
-    // Remove any partial JSON artifacts
-    if (cleanText.includes('"message"')) {
-      const msgMatch = cleanText.match(/"message"\s*:\s*"([^"]+)"/);
-      if (msgMatch) cleanText = msgMatch[1];
-    }
+  // Attempt 3: plain text fallback
+  const cleanText = rawOutput.trim();
+  if (cleanText.length > 0) {
+    // Try to extract just the message field if it exists
+    const msgMatch = cleanText.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const message = msgMatch ? msgMatch[1] : cleanText;
+
+    console.log("[agent] Using text fallback");
     return {
       action: "reply",
-      message: cleanText,
+      message,
       reason_code: "greeting",
       handoff_reason: null,
       confidence: 0.5,
     };
   }
 
-  throw new Error("Empty response from agent");
+  // Last resort: return a generic message instead of crashing
+  console.error("[agent] Empty response from model, using default message");
+  return {
+    action: "reply",
+    message:
+      "Merci pour votre message ! Pouvez-vous m'en dire un peu plus sur ce que vous recherchez ?",
+    reason_code: "greeting",
+    handoff_reason: null,
+    confidence: 0.3,
+  };
 }
 
 function extractJson(text: string): string {
