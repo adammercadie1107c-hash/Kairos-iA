@@ -181,14 +181,7 @@ export async function POST(request: NextRequest) {
 
     const { decision } = result;
 
-    // If sending booking link, append it to the message
-    let agentMessage = decision.message;
-    if (
-      decision.action === "send_booking" &&
-      config.booking_link
-    ) {
-      agentMessage = `${decision.message}\n\n${config.booking_link}`;
-    }
+    const agentMessage = decision.message;
 
     // Save agent response
     await supabase.from("messages").insert({
