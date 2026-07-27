@@ -13,6 +13,16 @@ export async function toggleAi(conversationId: string, enable: boolean) {
   const updates: Record<string, unknown> = { ai_enabled: enable };
   if (!enable) {
     updates.status = "handoff";
+  } else {
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("status")
+      .eq("id", conversationId)
+      .eq("user_id", user.id)
+      .single();
+    if (conv?.status === "handoff") {
+      updates.status = "qualifying";
+    }
   }
 
   await supabase
@@ -23,6 +33,7 @@ export async function toggleAi(conversationId: string, enable: boolean) {
 
   revalidatePath(`/inbox/${conversationId}`);
   revalidatePath("/inbox");
+  revalidatePath("/dashboard");
 }
 
 export async function sendHumanMessage(
@@ -51,6 +62,7 @@ export async function sendHumanMessage(
 
   revalidatePath(`/inbox/${conversationId}`);
   revalidatePath("/inbox");
+  revalidatePath("/dashboard");
 }
 
 export async function updateConversationStatus(
@@ -71,4 +83,5 @@ export async function updateConversationStatus(
 
   revalidatePath(`/inbox/${conversationId}`);
   revalidatePath("/inbox");
+  revalidatePath("/dashboard");
 }
