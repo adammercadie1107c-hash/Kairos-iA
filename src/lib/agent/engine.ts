@@ -55,8 +55,10 @@ export async function runAgent(
     throw new Error("Last message must be from contact");
   }
 
-  // Prefill: start the assistant response with { to force JSON
-  contextMessages.push({ role: "assistant", content: "{" });
+  // Append a reminder as the last user message to force JSON
+  const lastIdx = contextMessages.length - 1;
+  contextMessages[lastIdx].content +=
+    "\n\n[RAPPEL SYSTÈME : réponds UNIQUEMENT en JSON valide, sans aucun texte avant ou après. Commence directement par { ]";
 
   let lastError: Error | null = null;
 
@@ -71,11 +73,8 @@ export async function runAgent(
     });
 
     const latencyMs = Date.now() - start;
-    const rawText =
+    const rawOutput =
       response.content[0]?.type === "text" ? response.content[0].text : "";
-
-    // Prepend the prefill { back
-    const rawOutput = "{" + rawText;
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
@@ -99,6 +98,23 @@ export async function runAgent(
         rawOutput,
       };
     } catch (e) {
+      // If we got plain text, wrap it as a fallback reply
+      if (attempt === MAX_RETRIES && rawOutput.length > 0) {
+        const fallback: AgentDecision = {
+          action: "reply",
+          message: rawOutput.trim(),
+          reason_code: "greeting",
+          handoff_reason: null,
+          confidence: 0.7,
+        };
+        return {
+          decision: fallback,
+          inputTokens,
+          outputTokens,
+          latencyMs,
+          rawOutput,
+        };
+      }
       lastError = e instanceof Error ? e : new Error(String(e));
       continue;
     }
@@ -111,14 +127,18 @@ export async function runAgent(
 
 function extractJson(text: string): string {
   const trimmed = text.trim();
+
+  // Starts with {
   if (trimmed.startsWith("{")) {
     const end = trimmed.lastIndexOf("}");
     if (end !== -1) return trimmed.slice(0, end + 1);
   }
 
+  // Inside code block
   const match = trimmed.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
   if (match) return match[1];
 
+  // Find first { to last }
   const braceStart = trimmed.indexOf("{");
   const braceEnd = trimmed.lastIndexOf("}");
   if (braceStart !== -1 && braceEnd > braceStart) {
