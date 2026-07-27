@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MessageSquare } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Inbox — Kairos iA" };
 
 const statusLabels: Record<string, { label: string; className: string }> = {
   new: { label: "Nouveau", className: "bg-gray-100 text-gray-600" },
@@ -23,13 +27,14 @@ export default async function InboxPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   let query = supabase
     .from("conversations")
     .select(
       "id, status, ai_enabled, last_message_at, created_at, contact_id, contacts(display_name, extracted_info), channels(type)",
     )
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("last_message_at", { ascending: false, nullsFirst: false });
 
   if (params.status && params.status !== "all") {

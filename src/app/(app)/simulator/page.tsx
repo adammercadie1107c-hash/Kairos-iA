@@ -1,16 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { SimulatorChat } from "./simulator-chat";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Simulateur — Kairos iA" };
 
 export default async function SimulatorPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   const { data: config } = await supabase
     .from("agent_configs")
     .select("business_name")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .single();
 
   const hasConfig = Boolean(config?.business_name);

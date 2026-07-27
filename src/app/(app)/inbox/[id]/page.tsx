@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft, Bot, User, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { ConversationControls } from "./controls";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Conversation — Kairos iA" };
 
 const statusLabels: Record<string, { label: string; className: string }> = {
   new: { label: "Nouveau", className: "bg-gray-100 text-gray-600" },
@@ -66,6 +69,7 @@ export default async function ConversationPage({
         <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
           <Link
             href="/inbox"
+            aria-label="Retour à l'inbox"
             className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100"
           >
             <ArrowLeft className="h-4 w-4 text-gray-600" />

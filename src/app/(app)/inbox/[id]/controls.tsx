@@ -115,6 +115,7 @@ export function ConversationControls({
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
+            <span className="sr-only">Envoyer</span>
           </button>
         </div>
       </div>

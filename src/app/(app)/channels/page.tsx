@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { MessageSquare, Camera, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Channel } from "@/lib/supabase/types";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Canaux — Kairos iA" };
 
 const channelMeta: Record<
   string,
@@ -36,17 +40,19 @@ export default async function ChannelsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) redirect("/login");
+
   const { data: channels } = await supabase
     .from("channels")
     .select("*")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("created_at");
 
   const allChannelTypes = ["demo", "instagram", "whatsapp"] as const;
 
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-900">Canaux</h1>
+      <h1 className="text-lg font-bold text-gray-900">Canaux</h1>
       <p className="mt-1 text-sm text-gray-500">
         Gérez vos canaux de communication.
       </p>
