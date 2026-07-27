@@ -7,7 +7,6 @@ import type { AgentConfig, Message } from "@/lib/supabase/types";
 const anthropic = new Anthropic();
 
 const MAX_CONTEXT_MESSAGES = 20;
-const MAX_RETRIES = 1;
 
 export interface AgentRunResult {
   decision: AgentDecision;
@@ -47,7 +46,6 @@ export async function runAgent(
     }
   }
 
-  // Ensure last message is from user
   if (
     contextMessages.length === 0 ||
     contextMessages[contextMessages.length - 1].role !== "user"
@@ -55,95 +53,100 @@ export async function runAgent(
     throw new Error("Last message must be from contact");
   }
 
-  // Append a reminder as the last user message to force JSON
-  const lastIdx = contextMessages.length - 1;
-  contextMessages[lastIdx].content +=
-    "\n\n[RAPPEL SYSTÈME : réponds UNIQUEMENT en JSON valide, sans aucun texte avant ou après. Commence directement par { ]";
+  const start = Date.now();
 
-  let lastError: Error | null = null;
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: contextMessages,
+  });
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const start = Date.now();
+  const latencyMs = Date.now() - start;
+  const rawOutput =
+    response.content[0]?.type === "text" ? response.content[0].text : "";
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: contextMessages,
-    });
+  // Try to parse as JSON
+  const decision = parseDecision(rawOutput);
 
-    const latencyMs = Date.now() - start;
-    const rawOutput =
-      response.content[0]?.type === "text" ? response.content[0].text : "";
+  return {
+    decision,
+    inputTokens,
+    outputTokens,
+    latencyMs,
+    rawOutput,
+  };
+}
 
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-
-    try {
-      const jsonStr = extractJson(rawOutput);
-      const parsed = z.safeParse(AgentDecisionSchema, JSON.parse(jsonStr));
-
-      if (!parsed.success) {
-        lastError = new Error(
-          `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
-        );
-        continue;
-      }
-
-      return {
-        decision: parsed.data,
-        inputTokens,
-        outputTokens,
-        latencyMs,
-        rawOutput,
-      };
-    } catch (e) {
-      // If we got plain text, wrap it as a fallback reply
-      if (attempt === MAX_RETRIES && rawOutput.length > 0) {
-        const fallback: AgentDecision = {
-          action: "reply",
-          message: rawOutput.trim(),
-          reason_code: "greeting",
-          handoff_reason: null,
-          confidence: 0.7,
-        };
-        return {
-          decision: fallback,
-          inputTokens,
-          outputTokens,
-          latencyMs,
-          rawOutput,
-        };
-      }
-      lastError = e instanceof Error ? e : new Error(String(e));
-      continue;
+function parseDecision(rawOutput: string): AgentDecision {
+  // Attempt 1: extract and validate JSON
+  try {
+    const jsonStr = extractJson(rawOutput);
+    const parsed = z.safeParse(AgentDecisionSchema, JSON.parse(jsonStr));
+    if (parsed.success) {
+      return parsed.data;
     }
+  } catch {
+    // fall through to fallback
   }
 
-  throw new Error(
-    `Agent failed after ${MAX_RETRIES + 1} attempts: ${lastError?.message}`,
-  );
+  // Attempt 2: maybe the JSON is valid but has extra fields or minor issues
+  try {
+    const jsonStr = extractJson(rawOutput);
+    const obj = JSON.parse(jsonStr);
+    if (obj.message && typeof obj.message === "string") {
+      return {
+        action: obj.action ?? "reply",
+        message: obj.message,
+        reason_code: obj.reason_code ?? "greeting",
+        handoff_reason: obj.handoff_reason ?? null,
+        extracted_info: obj.extracted_info,
+        new_status: obj.new_status,
+        confidence: typeof obj.confidence === "number" ? obj.confidence : 0.7,
+      };
+    }
+  } catch {
+    // fall through to text fallback
+  }
+
+  // Attempt 3: plain text fallback — use the response as-is
+  if (rawOutput.trim().length > 0) {
+    let cleanText = rawOutput.trim();
+    // Remove any partial JSON artifacts
+    if (cleanText.includes('"message"')) {
+      const msgMatch = cleanText.match(/"message"\s*:\s*"([^"]+)"/);
+      if (msgMatch) cleanText = msgMatch[1];
+    }
+    return {
+      action: "reply",
+      message: cleanText,
+      reason_code: "greeting",
+      handoff_reason: null,
+      confidence: 0.5,
+    };
+  }
+
+  throw new Error("Empty response from agent");
 }
 
 function extractJson(text: string): string {
   const trimmed = text.trim();
 
-  // Starts with {
   if (trimmed.startsWith("{")) {
     const end = trimmed.lastIndexOf("}");
     if (end !== -1) return trimmed.slice(0, end + 1);
   }
 
-  // Inside code block
   const match = trimmed.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
   if (match) return match[1];
 
-  // Find first { to last }
   const braceStart = trimmed.indexOf("{");
   const braceEnd = trimmed.lastIndexOf("}");
   if (braceStart !== -1 && braceEnd > braceStart) {
     return trimmed.slice(braceStart, braceEnd + 1);
   }
 
-  throw new Error("No JSON found in agent response");
+  throw new Error("No JSON found");
 }
