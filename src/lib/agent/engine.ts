@@ -23,10 +23,40 @@ export async function runAgent(
 ): Promise<AgentRunResult> {
   const systemPrompt = buildSystemPrompt(config);
 
-  const contextMessages = messages.slice(-MAX_CONTEXT_MESSAGES).map((m) => ({
-    role: (m.role === "contact" ? "user" : "assistant") as "user" | "assistant",
-    content: m.content,
-  }));
+  const contextMessages: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }> = [];
+
+  const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
+
+  for (const m of recentMessages) {
+    if (m.role === "contact") {
+      contextMessages.push({ role: "user", content: m.content });
+    } else if (m.role === "agent" || m.role === "human") {
+      contextMessages.push({
+        role: "assistant",
+        content: JSON.stringify({
+          action: "reply",
+          message: m.content,
+          reason_code: "greeting",
+          handoff_reason: null,
+          confidence: 0.9,
+        }),
+      });
+    }
+  }
+
+  // Ensure last message is from user
+  if (
+    contextMessages.length === 0 ||
+    contextMessages[contextMessages.length - 1].role !== "user"
+  ) {
+    throw new Error("Last message must be from contact");
+  }
+
+  // Prefill: start the assistant response with { to force JSON
+  contextMessages.push({ role: "assistant", content: "{" });
 
   let lastError: Error | null = null;
 
@@ -41,8 +71,11 @@ export async function runAgent(
     });
 
     const latencyMs = Date.now() - start;
-    const rawOutput =
+    const rawText =
       response.content[0]?.type === "text" ? response.content[0].text : "";
+
+    // Prepend the prefill { back
+    const rawOutput = "{" + rawText;
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
@@ -78,7 +111,10 @@ export async function runAgent(
 
 function extractJson(text: string): string {
   const trimmed = text.trim();
-  if (trimmed.startsWith("{")) return trimmed;
+  if (trimmed.startsWith("{")) {
+    const end = trimmed.lastIndexOf("}");
+    if (end !== -1) return trimmed.slice(0, end + 1);
+  }
 
   const match = trimmed.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
   if (match) return match[1];
