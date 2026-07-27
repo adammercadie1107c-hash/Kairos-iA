@@ -34,7 +34,7 @@ export async function runAgent(
     const start = Date.now();
 
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 1024,
       system: systemPrompt,
       messages: contextMessages,
