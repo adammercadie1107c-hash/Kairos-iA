@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Inbox,
+  Users,
   Bot,
   Radio,
   MessageSquare,
@@ -17,6 +18,7 @@ import { logout } from "../(auth)/actions";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/prospects", label: "Prospects", icon: Users },
   { href: "/agent", label: "Agent", icon: Bot },
   { href: "/channels", label: "Canaux", icon: Radio },
   { href: "/simulator", label: "Simulateur", icon: MessageSquare },
