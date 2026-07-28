@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, todayDateStr } from "@/lib/utils";
 import type { Prospect } from "@/lib/supabase/types";
 import type { Metadata } from "next";
 import {
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
   }
 
   const prospects = (data ?? []) as Prospect[];
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayDateStr();
 
   const total = prospects.length;
   const nouveaux = prospects.filter((p) => p.status === "nouveau").length;

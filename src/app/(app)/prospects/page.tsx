@@ -43,7 +43,7 @@ export default async function ProspectsPage({
     <div className="p-4 sm:p-6">
       <h1 className="text-lg font-bold text-gray-900">Prospects</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Gerez vos prospects et suivez vos relances.
+        Gérez vos prospects et suivez vos relances.
       </p>
       <div className="mt-4">
         <ProspectsTable prospects={prospects} autoOpen={params.new === "1"} />

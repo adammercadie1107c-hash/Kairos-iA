@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { todayDateStr } from "@/lib/utils";
 import type { ProspectStatus } from "@/lib/supabase/types";
 
 const VALID_STATUSES: ProspectStatus[] = [
@@ -69,7 +70,7 @@ function validateForm(formData: FormData, existingId?: string): {
   }
 
   if (nextFollowup) {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = todayDateStr();
     if (nextFollowup < todayStr) {
       fieldErrors.next_followup_at =
         "La date de prochaine relance ne peut pas être dans le passé.";

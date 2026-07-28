@@ -69,7 +69,7 @@ export function FollowupList({ overdue, today, upcoming }: Props) {
       {upcoming.length > 0 && (
         <Section
           icon={<CalendarClock className="h-5 w-5 text-blue-500" />}
-          title="A venir (7 jours)"
+          title="À venir (7 jours)"
           count={upcoming.length}
           badgeClassName="bg-blue-100 text-blue-700"
           prospects={upcoming}

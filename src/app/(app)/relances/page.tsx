@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { todayDateStr, addDaysDateStr } from "@/lib/utils";
 import type { Prospect } from "@/lib/supabase/types";
 import type { Metadata } from "next";
 import { FollowupList } from "./followup-list";
@@ -13,10 +14,8 @@ export default async function RelancesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const todayStr = new Date().toISOString().split("T")[0];
-  const in7days = new Date();
-  in7days.setDate(in7days.getDate() + 7);
-  const in7daysStr = in7days.toISOString().split("T")[0];
+  const todayStr = todayDateStr();
+  const in7daysStr = addDaysDateStr(7);
 
   const { data, error } = await supabase
     .from("prospects")
@@ -56,7 +55,7 @@ export default async function RelancesPage() {
     <div className="p-4 sm:p-6 max-w-4xl">
       <h1 className="text-lg font-bold text-gray-900">Relances</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Suivez vos relances a venir et en retard.
+        Suivez vos relances à venir et en retard.
       </p>
       <div className="mt-6">
         <FollowupList overdue={overdue} today={today} upcoming={upcoming} />

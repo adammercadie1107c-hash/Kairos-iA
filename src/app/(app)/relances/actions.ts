@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { todayDateStr } from "@/lib/utils";
 
 export async function markFollowedUp(
   prospectId: string,
@@ -14,7 +15,7 @@ export async function markFollowedUp(
   if (!user) return { error: "Non authentifié" };
 
   if (nextFollowupAt) {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = todayDateStr();
     if (nextFollowupAt < todayStr) {
       return { error: "La date de prochaine relance ne peut pas être dans le passé." };
     }

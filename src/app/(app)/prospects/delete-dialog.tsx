@@ -43,7 +43,7 @@ export function DeleteDialog({
             </h3>
             <p className="mt-1 text-sm text-gray-500">
               Supprimer <strong>{prospectName}</strong> ? Cette action est
-              irreversible.
+              irréversible.
             </p>
           </div>
         </div>
