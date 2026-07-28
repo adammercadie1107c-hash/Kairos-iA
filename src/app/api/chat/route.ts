@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
       decision: decision.action,
       reason_code: decision.reason_code,
       handoff_reason: decision.handoff_reason,
-      raw_output: JSON.parse(result.rawOutput),
+      raw_output: (() => { try { return JSON.parse(result.rawOutput); } catch { return { text: result.rawOutput }; } })(),
     });
 
     return NextResponse.json({

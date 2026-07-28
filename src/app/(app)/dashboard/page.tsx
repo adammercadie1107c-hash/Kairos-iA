@@ -22,24 +22,31 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [convResult, msgResult, logResult] = await Promise.all([
-    supabase
-      .from("conversations")
-      .select("id, status, ai_enabled, created_at, last_message_at, contact_id, contacts(display_name)")
-      .eq("user_id", user.id)
-      .order("last_message_at", { ascending: false, nullsFirst: false }),
-    supabase
-      .from("messages")
-      .select("id, conversation_id, role, created_at", { count: "exact" })
-      .limit(0),
-    supabase
-      .from("agent_logs")
-      .select("latency_ms, decision, created_at")
-      .order("created_at", { ascending: false })
-      .limit(100),
-  ]);
+  const { data: conversations_ } = await supabase
+    .from("conversations")
+    .select("id, status, ai_enabled, created_at, last_message_at, contact_id, contacts(display_name)")
+    .eq("user_id", user.id)
+    .order("last_message_at", { ascending: false, nullsFirst: false });
 
-  const conversations = convResult.data ?? [];
+  const conversations = conversations_ ?? [];
+  const convIds = conversations.map((c) => c.id);
+
+  const [msgResult, logResult] = convIds.length > 0
+    ? await Promise.all([
+        supabase
+          .from("messages")
+          .select("id", { count: "exact" })
+          .in("conversation_id", convIds)
+          .limit(0),
+        supabase
+          .from("agent_logs")
+          .select("latency_ms, decision, created_at")
+          .in("conversation_id", convIds)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ])
+    : [{ count: 0 }, { data: [] }];
+
   const totalMessages = msgResult.count ?? 0;
   const logs = logResult.data ?? [];
 

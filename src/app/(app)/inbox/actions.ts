@@ -48,6 +48,15 @@ export async function sendHumanMessage(
 
   if (!content.trim()) return { error: "Message vide" };
 
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("id", conversationId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!conv) return { error: "Conversation introuvable" };
+
   await supabase.from("messages").insert({
     conversation_id: conversationId,
     role: "human",
