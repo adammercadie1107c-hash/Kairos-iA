@@ -38,12 +38,18 @@ const STATUS_FILTERS = [
 type SortKey = "name" | "company" | "status" | "next_followup_at" | "created_at";
 type SortDir = "asc" | "desc";
 
-export function ProspectsTable({ prospects }: { prospects: Prospect[] }) {
+export function ProspectsTable({
+  prospects,
+  autoOpen,
+}: {
+  prospects: Prospect[];
+  autoOpen?: boolean;
+}) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(autoOpen === true);
   const [editingProspect, setEditingProspect] = useState<Prospect | undefined>();
   const [deletingProspect, setDeletingProspect] = useState<Prospect | null>(null);
 

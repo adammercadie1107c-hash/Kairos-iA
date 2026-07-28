@@ -6,7 +6,12 @@ import { ProspectsTable } from "./prospects-table";
 
 export const metadata: Metadata = { title: "Prospects — Kairos iA" };
 
-export default async function ProspectsPage() {
+export default async function ProspectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -41,7 +46,7 @@ export default async function ProspectsPage() {
         Gerez vos prospects et suivez vos relances.
       </p>
       <div className="mt-4">
-        <ProspectsTable prospects={prospects} />
+        <ProspectsTable prospects={prospects} autoOpen={params.new === "1"} />
       </div>
     </div>
   );
