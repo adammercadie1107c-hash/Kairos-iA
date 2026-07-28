@@ -131,7 +131,7 @@ export default async function ConversationPage({
                     )}
                   </div>
                 )}
-                <div className="max-w-[75%]">
+                <div className="max-w-[85%] sm:max-w-[75%]">
                   {isHuman && (
                     <p className="mb-0.5 text-xs text-green-600 font-medium">
                       Vous (humain)

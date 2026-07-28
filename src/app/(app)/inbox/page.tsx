@@ -64,9 +64,9 @@ export default async function InboxPage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
+      <div className="border-b border-gray-200 bg-white px-4 sm:px-6 py-3 sm:py-4">
         <h1 className="text-lg font-bold text-gray-900">Inbox</h1>
-        <div className="mt-3 flex gap-2 overflow-x-auto">
+        <div className="mt-2 sm:mt-3 flex gap-1.5 sm:gap-2 overflow-x-auto pb-1">
           {[
             { key: "all", label: "Tous" },
             { key: "qualifying", label: "Qualification" },
@@ -124,31 +124,31 @@ export default async function InboxPage({
                 <Link
                   key={conv.id}
                   href={`/inbox/${conv.id}`}
-                  className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-600">
                     {(contact?.display_name ?? "?")[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900 truncate">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900 truncate max-w-[120px] sm:max-w-none">
                         {contact?.display_name ?? "Contact"}
                       </span>
                       <span
                         className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+                          "shrink-0 rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-medium",
                           status.className,
                         )}
                       >
                         {status.label}
                       </span>
                       {!conv.ai_enabled && (
-                        <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">
+                        <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-orange-600">
                           IA off
                         </span>
                       )}
                       {channel && (
-                        <span className="shrink-0 text-xs text-gray-400">
+                        <span className="hidden sm:inline shrink-0 text-xs text-gray-400">
                           {channel.type}
                         </span>
                       )}

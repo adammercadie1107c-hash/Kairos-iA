@@ -53,25 +53,26 @@ export function ConversationControls({
   return (
     <div className="border-t border-gray-200 bg-white">
       {/* Status + AI toggle bar */}
-      <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 border-b border-gray-100 px-3 sm:px-4 py-2 overflow-x-auto">
         <button
           type="button"
           onClick={handleToggleAi}
           disabled={isPending}
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+            "flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-medium transition-colors",
             aiEnabled
               ? "bg-green-100 text-green-700 hover:bg-green-200"
               : "bg-orange-100 text-orange-700 hover:bg-orange-200",
           )}
         >
           <Power className="h-3 w-3" />
-          {aiEnabled ? "IA active" : "IA désactivée"}
+          <span className="hidden sm:inline">{aiEnabled ? "IA active" : "IA désactivée"}</span>
+          <span className="sm:hidden">{aiEnabled ? "IA" : "Off"}</span>
         </button>
 
-        <div className="mx-2 h-4 w-px bg-gray-200" />
+        <div className="mx-1 sm:mx-2 h-4 w-px shrink-0 bg-gray-200" />
 
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex gap-1">
           {statusOptions.map((opt) => (
             <button
               key={opt.value}
@@ -79,7 +80,7 @@ export function ConversationControls({
               onClick={() => handleStatusChange(opt.value)}
               disabled={isPending || currentStatus === opt.value}
               className={cn(
-                "whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                "whitespace-nowrap rounded-full px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-medium transition-colors",
                 currentStatus === opt.value
                   ? "bg-blue-100 text-blue-700"
                   : "bg-gray-50 text-gray-500 hover:bg-gray-100",

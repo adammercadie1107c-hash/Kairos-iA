@@ -92,7 +92,7 @@ export default async function DashboardPage() {
   ).length;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-500">
@@ -101,7 +101,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <KpiCard
           icon={Users}
           label="Prospects"
@@ -297,35 +297,32 @@ function KpiCard({
   const c = kpiColors[color];
   const content = (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <div
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-lg",
+            "flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg",
             c.bg,
           )}
         >
-          <Icon className={cn("h-5 w-5", c.icon)} />
+          <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", c.icon)} />
         </div>
-        <div>
-          <p className="text-xs text-gray-500">{label}</p>
-          <p className="text-xl font-bold text-gray-900">{value}</p>
+        <div className="min-w-0">
+          <p className="text-[10px] sm:text-xs text-gray-500 truncate">{label}</p>
+          <p className="text-lg sm:text-xl font-bold text-gray-900">{value}</p>
         </div>
       </div>
-      <p className="mt-2 text-xs text-gray-400">{sub}</p>
+      <p className="mt-1.5 text-[10px] sm:text-xs text-gray-400 truncate">{sub}</p>
     </>
   );
+  const cls = "rounded-lg border border-gray-200 bg-white p-3 sm:p-4";
   if (href) {
     return (
-      <Link href={href} className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+      <Link href={href} className={cn(cls, "hover:border-gray-300 transition-colors")}>
         {content}
       </Link>
     );
   }
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      {content}
-    </div>
-  );
+  return <div className={cls}>{content}</div>;
 }
 
 function StatRow({

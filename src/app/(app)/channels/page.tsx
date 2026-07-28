@@ -51,7 +51,7 @@ export default async function ChannelsPage() {
   const allChannelTypes = ["demo", "instagram", "whatsapp"] as const;
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 sm:p-6 max-w-3xl">
       <h1 className="text-lg font-bold text-gray-900">Canaux</h1>
       <p className="mt-1 text-sm text-gray-500">
         Gérez vos canaux de communication.

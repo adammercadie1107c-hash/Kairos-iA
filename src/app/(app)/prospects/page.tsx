@@ -73,14 +73,14 @@ export default async function ProspectsPage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
+      <div className="border-b border-gray-200 bg-white px-4 sm:px-6 py-3 sm:py-4">
         <h1 className="text-lg font-bold text-gray-900">Prospects</h1>
         <p className="mt-1 text-sm text-gray-500">
           {filtered.length} contact{filtered.length > 1 ? "s" : ""}
         </p>
 
-        <div className="mt-3 flex items-center gap-3">
-          <form className="flex-1 max-w-xs">
+        <div className="mt-2 sm:mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <form className="w-full sm:flex-1 sm:max-w-xs">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -141,7 +141,7 @@ export default async function ProspectsPage({
                 <Link
                   key={contact.id}
                   href={`/prospects/${contact.id}`}
-                  className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-600">
                     {(contact.display_name ?? "?")[0].toUpperCase()}
