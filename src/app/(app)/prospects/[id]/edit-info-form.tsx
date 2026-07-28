@@ -55,7 +55,11 @@ export function EditInfoForm({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-gray-500">Modifier les infos</p>
+      {entries.length === 0 && (
+        <p className="text-sm text-gray-400">
+          Aucune information. Ajoutez un champ ci-dessous.
+        </p>
+      )}
 
       {entries.map((entry, i) => (
         <div key={entry.key} className="flex items-center gap-2">

@@ -81,24 +81,7 @@ export default async function ProspectDetailPage({
               Informations collectées
             </h2>
 
-            {Object.keys(info).length === 0 ? (
-              <p className="mt-3 text-sm text-gray-400">
-                Aucune information collectée pour le moment.
-              </p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {Object.entries(info).map(([key, value]) => (
-                  <div key={key} className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium text-gray-700 min-w-[120px]">
-                      {key}
-                    </span>
-                    <span className="text-sm text-gray-600">{value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-4 border-t border-gray-100 pt-4">
+            <div className="mt-3">
               <EditInfoForm contactId={contact.id} currentInfo={info} />
             </div>
           </section>

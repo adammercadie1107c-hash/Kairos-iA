@@ -22,11 +22,20 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: conversations_ } = await supabase
-    .from("conversations")
-    .select("id, status, ai_enabled, created_at, last_message_at, contact_id, contacts(display_name)")
-    .eq("user_id", user.id)
-    .order("last_message_at", { ascending: false, nullsFirst: false });
+  const [convResult_, contactCountResult] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("id, status, ai_enabled, created_at, last_message_at, contact_id, contacts(display_name)")
+      .eq("user_id", user.id)
+      .order("last_message_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("contacts")
+      .select("id", { count: "exact" })
+      .eq("user_id", user.id)
+      .limit(0),
+  ]);
+  const conversations_ = convResult_.data;
+  const totalContacts = contactCountResult.count ?? 0;
 
   const conversations = conversations_ ?? [];
   const convIds = conversations.map((c) => c.id);
@@ -92,13 +101,22 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <KpiCard
+          icon={Users}
+          label="Prospects"
+          value={totalContacts}
+          sub={`${total} conversation${total > 1 ? "s" : ""}`}
+          color="blue"
+          href="/prospects"
+        />
         <KpiCard
           icon={MessageSquare}
           label="Conversations"
           value={total}
           sub={`${recentCount} cette semaine`}
           color="blue"
+          href="/inbox"
         />
         <KpiCard
           icon={TrendingUp}
@@ -267,16 +285,18 @@ function KpiCard({
   value,
   sub,
   color,
+  href,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | number;
   sub: string;
   color: keyof typeof kpiColors;
+  href?: string;
 }) {
   const c = kpiColors[color];
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
+  const content = (
+    <>
       <div className="flex items-center gap-3">
         <div
           className={cn(
@@ -292,6 +312,18 @@ function KpiCard({
         </div>
       </div>
       <p className="mt-2 text-xs text-gray-400">{sub}</p>
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      {content}
     </div>
   );
 }
