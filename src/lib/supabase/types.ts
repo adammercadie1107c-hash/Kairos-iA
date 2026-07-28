@@ -94,6 +94,28 @@ export interface AgentLog {
   created_at: string;
 }
 
+export type ProspectStatus =
+  | "nouveau"
+  | "contacte"
+  | "a_relancer"
+  | "gagne"
+  | "perdu";
+
+export interface Prospect {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  company: string;
+  email: string;
+  phone: string;
+  status: ProspectStatus;
+  next_followup_at: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ScheduledEvent {
   id: string;
   conversation_id: string;
