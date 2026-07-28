@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get demo channel
-    const { data: channel } = await supabase
+    // Get or create demo channel
+    let { data: channel } = await supabase
       .from("channels")
       .select("*")
       .eq("user_id", user.id)
@@ -53,10 +53,24 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!channel) {
-      return NextResponse.json(
-        { error: "Canal démo introuvable" },
-        { status: 404 },
-      );
+      const { data: newChannel, error: channelError } = await supabase
+        .from("channels")
+        .insert({
+          user_id: user.id,
+          type: "demo",
+          status: "active",
+          credentials: {},
+        })
+        .select()
+        .single();
+
+      if (channelError) {
+        return NextResponse.json(
+          { error: "Erreur création canal démo: " + channelError.message },
+          { status: 500 },
+        );
+      }
+      channel = newChannel;
     }
 
     // Normalize inbound message
@@ -107,6 +121,24 @@ export async function POST(request: NextRequest) {
         .eq("user_id", user.id)
         .single();
       conversation = existing;
+    }
+
+    if (!conversation) {
+      const { data: openConv } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("contact_id", contact.id)
+        .eq("channel_id", channel.id)
+        .eq("user_id", user.id)
+        .neq("status", "closed")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (openConv) {
+        conversation = openConv;
+        currentConversationId = openConv.id;
+      }
     }
 
     if (!conversation) {
@@ -162,6 +194,17 @@ export async function POST(request: NextRequest) {
     if (msgError) {
       return NextResponse.json(
         { error: "Erreur sauvegarde message: " + msgError.message },
+        { status: 500 },
+      );
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        {
+          conversationId: currentConversationId,
+          error:
+            "ANTHROPIC_API_KEY manquante dans .env.local. Ajoutez-la pour activer l'agent IA.",
+        },
         { status: 500 },
       );
     }

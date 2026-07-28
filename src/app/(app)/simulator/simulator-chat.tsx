@@ -37,7 +37,11 @@ export function SimulatorChat({ agentName }: { agentName: string }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [externalId] = useState(() => `demo_${nanoid(10)}`);
+  const [prospectName, setProspectName] = useState("");
+  const [prospectEmail, setProspectEmail] = useState("");
+  const [prospectPhone, setProspectPhone] = useState("");
+  const [started, setStarted] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const [status, setStatus] = useState("new");
   const [extractedInfo, setExtractedInfo] = useState<Record<string, string>>(
     {},
@@ -51,6 +55,12 @@ export function SimulatorChat({ agentName }: { agentName: string }) {
       behavior: "smooth",
     });
   }, [messages]);
+
+  function getExternalId() {
+    if (prospectEmail) return prospectEmail.toLowerCase().trim();
+    if (prospectPhone) return prospectPhone.trim();
+    return `demo_${prospectName.toLowerCase().trim().replace(/\s+/g, "_")}`;
+  }
 
   async function handleSend() {
     const text = input.trim();
@@ -74,12 +84,16 @@ export function SimulatorChat({ agentName }: { agentName: string }) {
         body: JSON.stringify({
           content: text,
           conversationId,
-          externalId,
-          displayName: "Prospect (démo)",
+          externalId: getExternalId(),
+          displayName: prospectName,
         }),
       });
 
       const data: AgentResponse = await res.json();
+
+      if (data.conversationId) {
+        setConversationId(data.conversationId);
+      }
 
       if (data.error) {
         setMessages((prev) => [
@@ -92,10 +106,6 @@ export function SimulatorChat({ agentName }: { agentName: string }) {
           },
         ]);
         return;
-      }
-
-      if (data.conversationId) {
-        setConversationId(data.conversationId);
       }
 
       if (data.aiEnabled === false) {
@@ -161,6 +171,99 @@ export function SimulatorChat({ agentName }: { agentName: string }) {
     setStatus("new");
     setExtractedInfo({});
     setAiEnabled(true);
+    setStarted(false);
+    setProspectName("");
+    setProspectEmail("");
+    setProspectPhone("");
+    setSetupError(null);
+  }
+
+  function handleStart() {
+    if (!prospectName.trim()) {
+      setSetupError("Le prénom est requis.");
+      return;
+    }
+    setSetupError(null);
+    setStarted(true);
+  }
+
+  if (!started) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">
+              Simuler un prospect
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Renseignez les informations du prospect pour tester l&apos;agent{" "}
+              {agentName}.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Prénom <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={prospectName}
+              onChange={(e) => setProspectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleStart();
+              }}
+              placeholder="Jean"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              type="email"
+              value={prospectEmail}
+              onChange={(e) => setProspectEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleStart();
+              }}
+              placeholder="jean@example.com"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Permet de retrouver le contact lors d&apos;un prochain test.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Téléphone
+            </label>
+            <input
+              type="tel"
+              value={prospectPhone}
+              onChange={(e) => setProspectPhone(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleStart();
+              }}
+              placeholder="06 12 34 56 78"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {setupError && <p className="text-sm text-red-600">{setupError}</p>}
+
+          <button
+            type="button"
+            onClick={handleStart}
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Commencer la simulation
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -266,6 +369,16 @@ export function SimulatorChat({ agentName }: { agentName: string }) {
         </h3>
 
         <div className="mt-4 space-y-3">
+          <InfoRow label="Nom">{prospectName}</InfoRow>
+
+          {prospectEmail && (
+            <InfoRow label="Email">{prospectEmail}</InfoRow>
+          )}
+
+          {prospectPhone && (
+            <InfoRow label="Téléphone">{prospectPhone}</InfoRow>
+          )}
+
           <InfoRow label="Statut">
             <StatusBadge status={status} />
           </InfoRow>

@@ -81,13 +81,22 @@ export async function saveAgentConfig(
     return { error: firstIssue?.message ?? "Données invalides" };
   }
 
-  const { error } = await supabase
+  const { data: existing } = await supabase
     .from("agent_configs")
-    .update({
-      ...parsed.data,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", user.id);
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const dbOp = existing
+    ? supabase
+        .from("agent_configs")
+        .update({ ...parsed.data, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+    : supabase
+        .from("agent_configs")
+        .insert({ user_id: user.id, ...parsed.data });
+
+  const { error } = await dbOp;
 
   if (error) {
     return { error: "Erreur lors de la sauvegarde : " + error.message };
