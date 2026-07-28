@@ -20,18 +20,18 @@ const STATUS_CONFIG: Record<
   { label: string; className: string }
 > = {
   nouveau: { label: "Nouveau", className: "bg-gray-100 text-gray-700" },
-  contacte: { label: "Contacte", className: "bg-blue-100 text-blue-700" },
-  a_relancer: { label: "A relancer", className: "bg-yellow-100 text-yellow-700" },
-  gagne: { label: "Gagne", className: "bg-green-100 text-green-700" },
+  contacte: { label: "Contacté", className: "bg-blue-100 text-blue-700" },
+  a_relancer: { label: "À relancer", className: "bg-yellow-100 text-yellow-700" },
+  gagne: { label: "Gagné", className: "bg-green-100 text-green-700" },
   perdu: { label: "Perdu", className: "bg-red-100 text-red-600" },
 };
 
 const STATUS_FILTERS = [
   { value: "all", label: "Tous" },
   { value: "nouveau", label: "Nouveau" },
-  { value: "contacte", label: "Contacte" },
-  { value: "a_relancer", label: "A relancer" },
-  { value: "gagne", label: "Gagne" },
+  { value: "contacte", label: "Contacté" },
+  { value: "a_relancer", label: "À relancer" },
+  { value: "gagne", label: "Gagné" },
   { value: "perdu", label: "Perdu" },
 ] as const;
 
@@ -224,6 +224,11 @@ export function ProspectsTable({
                         <div className="font-medium text-gray-900">
                           {p.first_name} {p.last_name}
                         </div>
+                        {p.next_action && (
+                          <div className="text-xs text-gray-400 truncate max-w-[200px]">
+                            {p.next_action}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         {p.company || "—"}
@@ -322,8 +327,14 @@ export function ProspectsTable({
                     )}
                   </div>
 
+                  {p.next_action && (
+                    <p className="mt-1.5 text-xs text-blue-600 line-clamp-1">
+                      → {p.next_action}
+                    </p>
+                  )}
+
                   {p.notes && (
-                    <p className="mt-2 text-xs text-gray-400 line-clamp-2">
+                    <p className="mt-1 text-xs text-gray-400 line-clamp-2">
                       {p.notes}
                     </p>
                   )}

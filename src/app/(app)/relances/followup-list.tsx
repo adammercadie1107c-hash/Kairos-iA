@@ -15,12 +15,12 @@ import type { Prospect } from "@/lib/supabase/types";
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   nouveau: { label: "Nouveau", className: "bg-gray-100 text-gray-700" },
-  contacte: { label: "Contacte", className: "bg-blue-100 text-blue-700" },
+  contacte: { label: "Contacté", className: "bg-blue-100 text-blue-700" },
   a_relancer: {
-    label: "A relancer",
+    label: "À relancer",
     className: "bg-yellow-100 text-yellow-700",
   },
-  gagne: { label: "Gagne", className: "bg-green-100 text-green-700" },
+  gagne: { label: "Gagné", className: "bg-green-100 text-green-700" },
   perdu: { label: "Perdu", className: "bg-red-100 text-red-600" },
 };
 
@@ -38,7 +38,7 @@ export function FollowupList({ overdue, today, upcoming }: Props) {
       <div className="mt-12 flex flex-col items-center">
         <CalendarCheck className="h-10 w-10 text-gray-300" />
         <p className="mt-3 text-sm text-gray-500">
-          Aucune relance prevue. Ajoutez des dates de relance sur vos prospects.
+          Aucune relance prévue. Ajoutez des dates de relance sur vos prospects.
         </p>
       </div>
     );
@@ -121,6 +121,7 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
   const [nextDate, setNextDate] = useState("");
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<"success" | "error" | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const st = STATUS_CONFIG[prospect.status] ?? {
     label: prospect.status,
@@ -128,15 +129,21 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
   };
 
   function handleMark() {
+    if (isPending) return;
     if (showDatePicker) {
       setResult(null);
+      setErrorMessage(null);
       startTransition(async () => {
         const res = await markFollowedUp(
           prospect.id,
           nextDate || null,
         );
-        setResult(res.error ? "error" : "success");
-        if (!res.error) {
+        if (res.error) {
+          setResult("error");
+          setErrorMessage(res.error);
+        } else {
+          setResult("success");
+          setErrorMessage(null);
           setShowDatePicker(false);
           setNextDate("");
         }
@@ -147,11 +154,17 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
   }
 
   function handleSkipDate() {
+    if (isPending) return;
     setResult(null);
+    setErrorMessage(null);
     startTransition(async () => {
       const res = await markFollowedUp(prospect.id, null);
-      setResult(res.error ? "error" : "success");
-      if (!res.error) {
+      if (res.error) {
+        setResult("error");
+        setErrorMessage(res.error);
+      } else {
+        setResult("success");
+        setErrorMessage(null);
         setShowDatePicker(false);
         setNextDate("");
       }
@@ -192,6 +205,12 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
             )}
           </div>
 
+          {prospect.next_action && (
+            <p className="mt-1 text-xs text-blue-600 line-clamp-1">
+              → {prospect.next_action}
+            </p>
+          )}
+
           {prospect.notes && (
             <p className="mt-1 text-xs text-gray-400 line-clamp-2">
               {prospect.notes}
@@ -207,7 +226,9 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
             </span>
           )}
           {result === "error" && (
-            <span className="text-xs text-red-600 font-medium">Erreur</span>
+            <span className="text-xs text-red-600 font-medium">
+              {errorMessage || "Erreur"}
+            </span>
           )}
           <button
             type="button"

@@ -19,9 +19,9 @@ export const metadata: Metadata = { title: "Dashboard — Kairos iA" };
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   nouveau: { label: "Nouveau", className: "bg-gray-100 text-gray-700" },
-  contacte: { label: "Contacte", className: "bg-blue-100 text-blue-700" },
-  a_relancer: { label: "A relancer", className: "bg-yellow-100 text-yellow-700" },
-  gagne: { label: "Gagne", className: "bg-green-100 text-green-700" },
+  contacte: { label: "Contacté", className: "bg-blue-100 text-blue-700" },
+  a_relancer: { label: "À relancer", className: "bg-yellow-100 text-yellow-700" },
+  gagne: { label: "Gagné", className: "bg-green-100 text-green-700" },
   perdu: { label: "Perdu", className: "bg-red-100 text-red-600" },
 };
 
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
         />
         <KpiCard
           icon={Trophy}
-          label="Gagnes"
+          label="Gagnés"
           value={gagnes}
           color="green"
           href="/prospects"
@@ -176,7 +176,7 @@ export default async function DashboardPage() {
           <div className="p-8 text-center">
             <CalendarClock className="mx-auto h-8 w-8 text-gray-300" />
             <p className="mt-2 text-sm text-gray-500">
-              Aucune relance prevue.
+              Aucune relance prévue.
             </p>
             <Link
               href="/prospects"
@@ -221,6 +221,11 @@ export default async function DashboardPage() {
                         <span>{p.email || p.phone}</span>
                       )}
                     </div>
+                    {p.next_action && (
+                      <p className="text-xs text-blue-600 truncate">
+                        → {p.next_action}
+                      </p>
+                    )}
                   </div>
                   <div className="shrink-0 text-right">
                     <span

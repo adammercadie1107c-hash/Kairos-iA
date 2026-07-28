@@ -112,6 +112,7 @@ export interface Prospect {
   status: ProspectStatus;
   next_followup_at: string | null;
   last_followup_at: string | null;
+  next_action: string | null;
   notes: string;
   created_at: string;
   updated_at: string;

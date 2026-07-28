@@ -11,7 +11,14 @@ export async function markFollowedUp(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Non authentifie" };
+  if (!user) return { error: "Non authentifié" };
+
+  if (nextFollowupAt) {
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (nextFollowupAt < todayStr) {
+      return { error: "La date de prochaine relance ne peut pas être dans le passé." };
+    }
+  }
 
   const newStatus = nextFollowupAt ? "a_relancer" : "contacte";
 
@@ -30,5 +37,6 @@ export async function markFollowedUp(
 
   revalidatePath("/relances");
   revalidatePath("/prospects");
+  revalidatePath("/dashboard");
   return { success: true };
 }
