@@ -111,6 +111,7 @@ export interface Prospect {
   phone: string;
   status: ProspectStatus;
   next_followup_at: string | null;
+  last_followup_at: string | null;
   notes: string;
   created_at: string;
   updated_at: string;
