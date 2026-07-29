@@ -8,6 +8,21 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Conversation — Kairos iA" };
 
+const REASON_LABELS: Record<string, string> = {
+  greeting: "Accueil",
+  faq_answer: "FAQ",
+  qualification_progress: "Qualification",
+  all_fields_collected: "Qualifié",
+  objection_handled: "Objection",
+  booking_ready: "Réservation",
+  low_confidence: "Confiance faible",
+  human_requested: "Humain demandé",
+  off_topic: "Hors sujet",
+  sensitive_topic: "Sensible",
+  followup_needed: "Relance",
+  not_a_fit: "Non qualifié",
+};
+
 const statusLabels: Record<string, { label: string; className: string }> = {
   new: { label: "Nouveau", className: "bg-gray-100 text-gray-600" },
   qualifying: { label: "Qualification", className: "bg-blue-100 text-blue-700" },
@@ -149,6 +164,34 @@ export default async function ConversationPage({
                   >
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>
+                  {isAgent && msg.metadata && (() => {
+                    const meta = msg.metadata as Record<string, unknown>;
+                    const reasonCode = meta.reason_code as string | undefined;
+                    const confidence = typeof meta.confidence === "number" ? meta.confidence : undefined;
+                    return (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {reasonCode && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                          {REASON_LABELS[reasonCode] ?? reasonCode}
+                        </span>
+                      )}
+                      {confidence !== undefined && (
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                            confidence >= 0.7
+                              ? "bg-green-50 text-green-700"
+                              : confidence >= 0.4
+                                ? "bg-orange-50 text-orange-600"
+                                : "bg-red-50 text-red-600",
+                          )}
+                        >
+                          {Math.round(confidence * 100)}%
+                        </span>
+                      )}
+                    </div>
+                    );
+                  })()}
                   <p className="mt-0.5 text-xs text-gray-400">
                     {formatTime(msg.created_at)}
                   </p>
