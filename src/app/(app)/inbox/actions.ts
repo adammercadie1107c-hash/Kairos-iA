@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export async function toggleAi(conversationId: string, enable: boolean) {
@@ -93,4 +94,41 @@ export async function updateConversationStatus(
   revalidatePath(`/inbox/${conversationId}`);
   revalidatePath("/inbox");
   revalidatePath("/dashboard");
+}
+
+export async function deleteConversation(conversationId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("id", conversationId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!conv) return { error: "Conversation introuvable" };
+
+  await supabase
+    .from("messages")
+    .delete()
+    .eq("conversation_id", conversationId);
+
+  await supabase
+    .from("agent_logs")
+    .delete()
+    .eq("conversation_id", conversationId);
+
+  await supabase
+    .from("conversations")
+    .delete()
+    .eq("id", conversationId)
+    .eq("user_id", user.id);
+
+  revalidatePath("/inbox");
+  revalidatePath("/dashboard");
+  redirect("/inbox");
 }

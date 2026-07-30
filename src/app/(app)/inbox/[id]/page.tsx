@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft, Bot, User, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { ConversationControls } from "./controls";
+import { DeleteConversationButton } from "./delete-button";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Conversation — Kairos iA" };
@@ -115,6 +116,7 @@ export default async function ConversationPage({
               <p className="text-xs text-gray-400">{channel.type}</p>
             )}
           </div>
+          <DeleteConversationButton conversationId={id} />
         </div>
 
         {/* Messages */}
