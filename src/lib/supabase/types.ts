@@ -43,7 +43,7 @@ export interface Channel {
   user_id: string;
   type: ChannelType;
   status: ChannelStatus;
-  credentials: Record<string, never>;
+  credentials: Record<string, unknown>;
   created_at: string;
 }
 
