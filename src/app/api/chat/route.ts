@@ -262,6 +262,34 @@ export async function POST(request: NextRequest) {
       updates.status = "handoff";
     }
 
+    if (decision.action === "schedule_followup") {
+      const currentFollowupCount = conversation.followup_count ?? 0;
+      if (currentFollowupCount < (config as AgentConfig).max_followups) {
+        const followupDate = new Date();
+        followupDate.setHours(followupDate.getHours() + 24);
+        const followupIso = followupDate.toISOString();
+
+        await supabase.from("scheduled_events").insert({
+          conversation_id: currentConversationId,
+          type: "followup",
+          scheduled_at: followupIso,
+        });
+
+        updates.next_followup_at = followupIso;
+        updates.followup_count = currentFollowupCount + 1;
+
+        await supabase
+          .from("prospects")
+          .update({
+            next_followup_at: followupDate.toISOString().split("T")[0],
+            status: "a_relancer",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("contact_id", contact.id)
+          .eq("user_id", user.id);
+      }
+    }
+
     await supabase
       .from("conversations")
       .update(updates)

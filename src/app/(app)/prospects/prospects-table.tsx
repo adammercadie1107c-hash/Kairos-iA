@@ -75,8 +75,8 @@ export function ProspectsTable({
         p.first_name.toLowerCase().includes(q) ||
         p.last_name.toLowerCase().includes(q) ||
         p.company.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q) ||
-        p.phone.includes(q),
+        (p.email ?? "").toLowerCase().includes(q) ||
+        (p.phone ?? "").includes(q),
     );
   }
 

@@ -109,7 +109,7 @@ export function ProspectForm({
               label="Email"
               name="email"
               type="email"
-              defaultValue={prospect?.email}
+              defaultValue={prospect?.email ?? undefined}
               error={fieldErrors.email}
               errId={errId("email")}
             />
@@ -117,7 +117,7 @@ export function ProspectForm({
               label="Téléphone"
               name="phone"
               type="tel"
-              defaultValue={prospect?.phone}
+              defaultValue={prospect?.phone ?? undefined}
               errId={errId("phone")}
             />
           </div>

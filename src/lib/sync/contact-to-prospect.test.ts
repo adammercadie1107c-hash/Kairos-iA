@@ -35,11 +35,11 @@ describe("extractEmail", () => {
   it("finds email from 'e-mail' key", () => {
     assert.equal(extractEmail({ "e-mail": "a@b.com" }), "a@b.com");
   });
-  it("returns empty if no email key", () => {
-    assert.equal(extractEmail({ objectif: "perdre du poids" }), "");
+  it("returns null if no email key", () => {
+    assert.equal(extractEmail({ objectif: "perdre du poids" }), null);
   });
-  it("returns empty if email value is invalid", () => {
-    assert.equal(extractEmail({ email: "not-an-email" }), "");
+  it("returns null if email value is invalid", () => {
+    assert.equal(extractEmail({ email: "not-an-email" }), null);
   });
 });
 
@@ -53,8 +53,8 @@ describe("extractPhone", () => {
   it("finds phone from 'mobile' key", () => {
     assert.equal(extractPhone({ mobile: "06 00 00 00 00" }), "06 00 00 00 00");
   });
-  it("returns empty if no phone key", () => {
-    assert.equal(extractPhone({ objectif: "prise de masse" }), "");
+  it("returns null if no phone key", () => {
+    assert.equal(extractPhone({ objectif: "prise de masse" }), null);
   });
 });
 
@@ -236,7 +236,7 @@ describe("syncQualifiedContactToProspect", () => {
     assert.equal(tables.prospects.length, 1);
   });
 
-  it("test 5: creates prospect without email", async () => {
+  it("test 5: creates prospect without email (null, not empty string)", async () => {
     const tables: Record<string, Record<string, unknown>[]> = {
       conversations: [{ id: CONV_ID, status: "qualified", contact_id: CONTACT_ID, user_id: USER_ID }],
       contacts: [{ id: CONTACT_ID, display_name: "Instagram User", extracted_info: { objectif: "Prise de masse" }, external_id: "ext-1" }],
@@ -244,7 +244,8 @@ describe("syncQualifiedContactToProspect", () => {
     };
     const result = await syncQualifiedContactToProspect(createMockSupabase(tables) as never, CONV_ID, USER_ID);
     assert.equal(result.action, "created");
-    assert.equal(tables.prospects[0].email, "");
+    assert.equal(tables.prospects[0].email, null);
+    assert.equal(tables.prospects[0].phone, null);
     assert.equal(tables.prospects[0].first_name, "Instagram");
   });
 
@@ -282,7 +283,19 @@ describe("syncQualifiedContactToProspect", () => {
     assert.equal(tables.prospects.length, 0);
   });
 
-  it("test 8: empty extracted values do not overwrite manual data", async () => {
+  it("test 8: new prospect gets auto-scheduled next_followup_at", async () => {
+    const tables: Record<string, Record<string, unknown>[]> = {
+      conversations: [{ id: CONV_ID, status: "qualified", contact_id: CONTACT_ID, user_id: USER_ID }],
+      contacts: [{ id: CONTACT_ID, display_name: "Nouveau Lead", extracted_info: { email: "lead@test.com" }, external_id: "ext-1" }],
+      prospects: [],
+    };
+    const result = await syncQualifiedContactToProspect(createMockSupabase(tables) as never, CONV_ID, USER_ID);
+    assert.equal(result.action, "created");
+    assert.ok(tables.prospects[0].next_followup_at, "next_followup_at should be set");
+    assert.equal(tables.prospects[0].next_action, "Contacter suite a la qualification IA");
+  });
+
+  it("test 9: empty extracted values do not overwrite manual data", async () => {
     const tables: Record<string, Record<string, unknown>[]> = {
       conversations: [{ id: CONV_ID, status: "qualified", contact_id: CONTACT_ID, user_id: USER_ID }],
       contacts: [{ id: CONTACT_ID, display_name: "", extracted_info: {}, external_id: "ext-1" }],

@@ -108,8 +108,8 @@ export interface Prospect {
   first_name: string;
   last_name: string;
   company: string;
-  email: string;
-  phone: string;
+  email: string | null;
+  phone: string | null;
   status: ProspectStatus;
   next_followup_at: string | null;
   last_followup_at: string | null;

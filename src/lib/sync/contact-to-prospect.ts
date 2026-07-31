@@ -30,22 +30,22 @@ function normalizeKey(key: string): string {
   return INFO_KEY_MAP[lower] ?? lower;
 }
 
-export function extractEmail(info: Record<string, string>): string {
+export function extractEmail(info: Record<string, string>): string | null {
   for (const [key, val] of Object.entries(info)) {
     if (/e?-?mail/i.test(key) && EMAIL_RE.test(val.trim())) {
       return val.trim().toLowerCase();
     }
   }
-  return "";
+  return null;
 }
 
-export function extractPhone(info: Record<string, string>): string {
+export function extractPhone(info: Record<string, string>): string | null {
   for (const [key, val] of Object.entries(info)) {
     if (/t[eé]l[eé]?phone?|phone|mobile|num[eé]ro/i.test(key) && val.trim()) {
       return val.trim();
     }
   }
-  return "";
+  return null;
 }
 
 export function buildNotes(info: Record<string, string>): string {
@@ -169,7 +169,11 @@ export async function syncQualifiedContactToProspect(
     }
   }
 
-  // 3. Create new prospect
+  // 3. Create new prospect with auto-scheduled follow-up
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
   const { data: newProspect, error } = await supabase
     .from("prospects")
     .insert({
@@ -182,6 +186,7 @@ export async function syncQualifiedContactToProspect(
       status: "contacte",
       notes,
       next_action: "Contacter suite a la qualification IA",
+      next_followup_at: tomorrow.toISOString().split("T")[0],
     })
     .select("id")
     .single();

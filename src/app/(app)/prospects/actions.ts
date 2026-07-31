@@ -34,8 +34,8 @@ function validateForm(formData: FormData, existingId?: string): {
     first_name: string;
     last_name: string;
     company: string;
-    email: string;
-    phone: string;
+    email: string | null;
+    phone: string | null;
     status: ProspectStatus;
     next_followup_at: string | null;
     next_action: string | null;
@@ -93,8 +93,8 @@ function validateForm(formData: FormData, existingId?: string): {
       first_name: firstName,
       last_name: lastName,
       company,
-      email,
-      phone,
+      email: email || null,
+      phone: phone || null,
       status: status as ProspectStatus,
       next_followup_at: nextFollowup || null,
       next_action: nextAction || null,
