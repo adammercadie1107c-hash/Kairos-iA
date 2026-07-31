@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runAgent } from "@/lib/agent/engine";
 import { demoAdapter } from "@/lib/channels/demo";
+import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
 import type { AgentConfig, Message } from "@/lib/supabase/types";
 
 export async function POST(request: NextRequest) {
@@ -265,6 +266,20 @@ export async function POST(request: NextRequest) {
       .from("conversations")
       .update(updates)
       .eq("id", currentConversationId);
+
+    // Sync qualified contact to CRM prospect
+    const finalStatus = (updates.status as string) ?? conversation.status;
+    if (finalStatus === "qualified" || finalStatus === "booking_sent") {
+      try {
+        await syncQualifiedContactToProspect(
+          supabase,
+          currentConversationId!,
+          user.id,
+        );
+      } catch (syncErr) {
+        console.error("Contact-to-prospect sync error:", syncErr);
+      }
+    }
 
     // Save agent log
     await supabase.from("agent_logs").insert({

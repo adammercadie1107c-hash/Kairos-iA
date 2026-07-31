@@ -49,7 +49,7 @@ export default async function ConversationPage({
 
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("*, contacts(display_name, extracted_info, external_id), channels(type)")
+    .select("*, contacts(id, display_name, extracted_info, external_id), channels(type)")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -63,6 +63,7 @@ export default async function ConversationPage({
     .order("created_at", { ascending: true });
 
   const contact = conversation.contacts as unknown as {
+    id: string;
     display_name: string | null;
     extracted_info: Record<string, string>;
     external_id: string;
@@ -71,6 +72,15 @@ export default async function ConversationPage({
   const channel = conversation.channels as unknown as {
     type: string;
   } | null;
+
+  const { data: linkedProspect } = contact
+    ? await supabase
+        .from("prospects")
+        .select("id, first_name, last_name")
+        .eq("contact_id", contact.id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+    : { data: null };
 
   const status = statusLabels[conversation.status] ?? {
     label: conversation.status,
@@ -116,7 +126,17 @@ export default async function ConversationPage({
               <p className="text-xs text-gray-400">{channel.type}</p>
             )}
           </div>
-          <DeleteConversationButton conversationId={id} />
+          <div className="flex items-center gap-1.5">
+            {linkedProspect && (
+              <Link
+                href={`/prospects?highlight=${linkedProspect.id}`}
+                className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+              >
+                Prospect CRM
+              </Link>
+            )}
+            <DeleteConversationButton conversationId={id} />
+          </div>
         </div>
 
         {/* Messages */}

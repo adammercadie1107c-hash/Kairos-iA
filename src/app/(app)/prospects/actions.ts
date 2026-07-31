@@ -59,9 +59,7 @@ function validateForm(formData: FormData, existingId?: string): {
     fieldErrors.first_name = "Veuillez renseigner le prénom.";
   }
 
-  if (!email) {
-    fieldErrors.email = "Veuillez renseigner l'adresse email.";
-  } else if (!EMAIL_RE.test(email)) {
+  if (email && !EMAIL_RE.test(email)) {
     fieldErrors.email = "Saisissez une adresse email valide.";
   }
 

@@ -112,7 +112,6 @@ export function ProspectForm({
               defaultValue={prospect?.email}
               error={fieldErrors.email}
               errId={errId("email")}
-              required
             />
             <FormField
               label="Téléphone"
