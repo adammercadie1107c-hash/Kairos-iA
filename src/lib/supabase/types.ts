@@ -126,5 +126,8 @@ export interface ScheduledEvent {
   scheduled_at: string;
   executed_at: string | null;
   cancelled: boolean;
+  processing_at: string | null;
+  attempts_count: number;
+  last_error: string | null;
   created_at: string;
 }

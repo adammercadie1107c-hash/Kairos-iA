@@ -164,6 +164,19 @@ export async function POST(request: NextRequest) {
       currentConversationId = newConv.id;
     }
 
+    // Cancel pending follow-up events — contact has replied
+    await supabase
+      .from("scheduled_events")
+      .update({ cancelled: true })
+      .eq("conversation_id", currentConversationId!)
+      .is("executed_at", null)
+      .eq("cancelled", false);
+
+    await supabase
+      .from("conversations")
+      .update({ next_followup_at: null })
+      .eq("id", currentConversationId!);
+
     // Check if AI is enabled
     if (!conversation.ai_enabled) {
       // Save inbound message only, don't run agent
@@ -265,28 +278,39 @@ export async function POST(request: NextRequest) {
     if (decision.action === "schedule_followup") {
       const currentFollowupCount = conversation.followup_count ?? 0;
       if (currentFollowupCount < (config as AgentConfig).max_followups) {
-        const followupDate = new Date();
-        followupDate.setHours(followupDate.getHours() + 24);
-        const followupIso = followupDate.toISOString();
+        // Check no pending event already exists for this conversation
+        const { data: existingPending } = await supabase
+          .from("scheduled_events")
+          .select("id")
+          .eq("conversation_id", currentConversationId!)
+          .is("executed_at", null)
+          .eq("cancelled", false)
+          .limit(1)
+          .maybeSingle();
 
-        await supabase.from("scheduled_events").insert({
-          conversation_id: currentConversationId,
-          type: "followup",
-          scheduled_at: followupIso,
-        });
+        if (!existingPending) {
+          const followupDate = new Date();
+          followupDate.setHours(followupDate.getHours() + 24);
+          const followupIso = followupDate.toISOString();
 
-        updates.next_followup_at = followupIso;
-        updates.followup_count = currentFollowupCount + 1;
+          await supabase.from("scheduled_events").insert({
+            conversation_id: currentConversationId,
+            type: "followup",
+            scheduled_at: followupIso,
+          });
 
-        await supabase
-          .from("prospects")
-          .update({
-            next_followup_at: followupDate.toISOString().split("T")[0],
-            status: "a_relancer",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("contact_id", contact.id)
-          .eq("user_id", user.id);
+          updates.next_followup_at = followupIso;
+
+          await supabase
+            .from("prospects")
+            .update({
+              next_followup_at: followupDate.toISOString().split("T")[0],
+              status: "a_relancer",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("contact_id", contact.id)
+            .eq("user_id", user.id);
+        }
       }
     }
 
