@@ -45,6 +45,9 @@ const oauthErrorMessages: Record<string, string> = {
   db_error: "Erreur lors de la sauvegarde du canal. Réessayez.",
   access_denied: "Connexion annulée.",
   not_configured: "La configuration Instagram n'est pas encore activée.",
+  no_pages: "Aucune Page Facebook trouvée. Votre compte doit gérer au moins une Page.",
+  no_instagram_account:
+    "Aucun compte Instagram Professional trouvé lié à vos Pages Facebook. Connectez votre compte Instagram Business ou Creator à une Page Facebook dans les paramètres Instagram.",
 };
 
 export default async function ChannelsPage({

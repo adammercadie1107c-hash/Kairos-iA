@@ -3,20 +3,21 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
-  getInstagramMe,
+  getUserPages,
+  getInstagramAccountFromPage,
 } from "@/lib/instagram/oauth";
 import type { InstagramCredentials } from "@/lib/instagram/types";
 
 /**
  * GET /api/auth/instagram/callback
  *
- * Receives the OAuth callback from Instagram Login.
- * Verifies the CSRF state, exchanges the authorization code for a
- * long-lived access token, fetches the Instagram account ID, and
- * upserts the channel row for the authenticated user.
+ * Handles the OAuth callback from Facebook Login for Business.
+ * Flow:
+ *   code → short-lived user token → long-lived user token
+ *   → list Facebook Pages → find Page with linked Instagram account
+ *   → upsert channel with Page Access Token + Instagram account ID
  *
- * Never exposes the token to the browser — it is stored server-side
- * in the Supabase `channels.credentials` column only.
+ * The token is stored server-side only; never exposed to the browser.
  */
 export async function GET(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
@@ -27,23 +28,19 @@ export async function GET(request: NextRequest) {
   const metaError = searchParams.get("error");
   const metaErrorDescription = searchParams.get("error_description");
 
-  // User denied access or Instagram returned an error
   if (metaError) {
-    console.error("Instagram OAuth error from Meta:", metaError, metaErrorDescription);
-    const errorKey =
-      metaError === "access_denied" ? "access_denied" : "oauth_failed";
-    return NextResponse.redirect(new URL(`/channels?error=${errorKey}`, appUrl));
+    console.error("Facebook OAuth error:", metaError, metaErrorDescription);
+    const key = metaError === "access_denied" ? "access_denied" : "oauth_failed";
+    return NextResponse.redirect(new URL(`/channels?error=${key}`, appUrl));
   }
 
-  // CSRF verification — constant-time comparison prevents timing attacks
+  // CSRF — char-by-char comparison prevents timing attacks
   const storedState = request.cookies.get("ig_oauth_state")?.value;
   const stateValid =
     typeof storedState === "string" &&
     typeof state === "string" &&
     storedState.length === state.length &&
-    storedState
-      .split("")
-      .every((char, i) => char === (state as string)[i]);
+    storedState.split("").every((c, i) => c === (state as string)[i]);
 
   if (!stateValid) {
     return NextResponse.redirect(new URL("/channels?error=invalid_state", appUrl));
@@ -53,7 +50,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/channels?error=no_code", appUrl));
   }
 
-  // Confirm the user is still authenticated
   const supabase = await createClient();
   const {
     data: { user },
@@ -68,7 +64,7 @@ export async function GET(request: NextRequest) {
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
   try {
-    // 1. Short-lived token (valid ~1 hour)
+    // 1. Short-lived user token
     const { access_token: shortToken } = await exchangeCodeForToken(
       code,
       appId,
@@ -76,27 +72,44 @@ export async function GET(request: NextRequest) {
       redirectUri,
     );
 
-    // 2. Long-lived token (valid ~60 days)
-    const { access_token: longToken } = await exchangeForLongLivedToken(
+    // 2. Long-lived user token (~60 days)
+    const { access_token: longUserToken } = await exchangeForLongLivedToken(
       shortToken,
       appId,
       appSecret,
     );
 
-    // 3. Fetch Instagram account ID (IGSID)
-    const { id: instagramAccountId } = await getInstagramMe(longToken);
+    // 3. List Facebook Pages managed by the user
+    const pages = await getUserPages(longUserToken);
 
-    if (!instagramAccountId) {
+    if (pages.length === 0) {
+      return NextResponse.redirect(new URL("/channels?error=no_pages", appUrl));
+    }
+
+    // 4. Find the first Page with a connected Instagram Professional account
+    let instagramAccountId: string | null = null;
+    let pageAccessToken: string | null = null;
+
+    for (const page of pages) {
+      const igId = await getInstagramAccountFromPage(page.id, page.access_token);
+      if (igId) {
+        instagramAccountId = igId;
+        pageAccessToken = page.access_token;
+        break;
+      }
+    }
+
+    if (!instagramAccountId || !pageAccessToken) {
       return NextResponse.redirect(
-        new URL("/channels?error=not_professional", appUrl),
+        new URL("/channels?error=no_instagram_account", appUrl),
       );
     }
 
-    // 4. Upsert channel — service client bypasses RLS
+    // 5. Upsert channel — service client bypasses RLS
     const serviceClient = await createServiceClient();
     const credentials: InstagramCredentials = {
       instagram_account_id: instagramAccountId,
-      page_access_token: longToken,
+      page_access_token: pageAccessToken,
     };
 
     const { error: upsertError } = await serviceClient
@@ -120,10 +133,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/channels?error=oauth_failed", appUrl));
   }
 
-  // Clear CSRF cookie and redirect to success
-  const response = NextResponse.redirect(
-    new URL("/channels?connected=true", appUrl),
-  );
+  const response = NextResponse.redirect(new URL("/channels?connected=true", appUrl));
   response.cookies.set("ig_oauth_state", "", { maxAge: 0, path: "/" });
 
   return response;
