@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const token = params.get("hub.verify_token");
   const challenge = params.get("hub.challenge");
 
-  const verifyToken = process.env.INSTAGRAM_VERIFY_TOKEN;
+  const verifyToken = process.env.INSTAGRAM_VERIFY_TOKEN || "kairos-ig-verify-2024";
 
   if (mode === "subscribe" && token === verifyToken && challenge) {
     return new NextResponse(challenge, { status: 200 });
