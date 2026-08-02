@@ -20,7 +20,6 @@ import type { InstagramCredentials } from "@/lib/instagram/types";
  * The token is stored server-side only; never exposed to the browser.
  */
 export async function GET(request: NextRequest) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
   const { searchParams } = request.nextUrl;
 
   const state = searchParams.get("state");
@@ -28,10 +27,18 @@ export async function GET(request: NextRequest) {
   const metaError = searchParams.get("error");
   const metaErrorDescription = searchParams.get("error_description");
 
+  // Helper to redirect with error params, using request URL origin
+  const redirectWithError = (errorKey: string) => {
+    const url = request.nextUrl.clone();
+    url.pathname = "/channels";
+    url.searchParams.set("error", errorKey);
+    return NextResponse.redirect(url);
+  };
+
   if (metaError) {
     console.error("Facebook OAuth error:", metaError, metaErrorDescription);
     const key = metaError === "access_denied" ? "access_denied" : "oauth_failed";
-    return NextResponse.redirect(new URL(`/channels?error=${key}`, appUrl));
+    return redirectWithError(key);
   }
 
   // CSRF — char-by-char comparison prevents timing attacks
@@ -43,11 +50,11 @@ export async function GET(request: NextRequest) {
     storedState.split("").every((c, i) => c === (state as string)[i]);
 
   if (!stateValid) {
-    return NextResponse.redirect(new URL("/channels?error=invalid_state", appUrl));
+    return redirectWithError("invalid_state");
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/channels?error=no_code", appUrl));
+    return redirectWithError("no_code");
   }
 
   const supabase = await createClient();
@@ -56,7 +63,10 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", appUrl));
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    return NextResponse.redirect(loginUrl);
   }
 
   const appId = process.env.META_APP_ID!;
@@ -90,7 +100,7 @@ export async function GET(request: NextRequest) {
     const pages = await getUserPages(longUserToken);
 
     if (pages.length === 0) {
-      return NextResponse.redirect(new URL("/channels?error=no_pages", appUrl));
+      return redirectWithError("no_pages");
     }
 
     // 4. Find the first Page with a connected Instagram Professional account
@@ -107,9 +117,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!instagramAccountId || !pageAccessToken) {
-      return NextResponse.redirect(
-        new URL("/channels?error=no_instagram_account", appUrl),
-      );
+      return redirectWithError("no_instagram_account");
     }
 
     // 5. Upsert channel — service client bypasses RLS
@@ -133,14 +141,18 @@ export async function GET(request: NextRequest) {
 
     if (upsertError) {
       console.error("Channel upsert error:", upsertError);
-      return NextResponse.redirect(new URL("/channels?error=db_error", appUrl));
+      return redirectWithError("db_error");
     }
   } catch (err) {
     console.error("Instagram OAuth flow error:", err);
-    return NextResponse.redirect(new URL("/channels?error=oauth_failed", appUrl));
+    return redirectWithError("oauth_failed");
   }
 
-  const response = NextResponse.redirect(new URL("/channels?connected=true", appUrl));
+  // Success redirect
+  const successUrl = request.nextUrl.clone();
+  successUrl.pathname = "/channels";
+  successUrl.search = "?connected=true";
+  const response = NextResponse.redirect(successUrl);
   response.cookies.set("ig_oauth_state", "", { maxAge: 0, path: "/" });
 
   return response;
