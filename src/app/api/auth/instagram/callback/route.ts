@@ -98,6 +98,10 @@ export async function GET(request: NextRequest) {
 
     // 3. List Facebook Pages managed by the user
     const pages = await getUserPages(longUserToken);
+    console.log("Pages found:", {
+      count: pages.length,
+      pages: pages.map((p) => ({ id: p.id, name: p.name })),
+    });
 
     if (pages.length === 0) {
       return redirectWithError("no_pages");
