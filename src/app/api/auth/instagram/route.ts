@@ -34,7 +34,7 @@ export async function GET(_request: NextRequest) {
   const authUrl = new URL("https://www.facebook.com/dialog/oauth");
   authUrl.searchParams.set("client_id", appId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "pages_show_list,manage_pages");
+  authUrl.searchParams.set("scope", "pages_show_list");
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("state", nonce);
 
