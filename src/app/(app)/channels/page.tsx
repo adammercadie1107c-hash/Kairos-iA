@@ -34,7 +34,26 @@ const statusLabels: Record<string, { label: string; className: string }> = {
   pending: { label: "En attente", className: "bg-yellow-100 text-yellow-700" },
 };
 
-export default async function ChannelsPage() {
+const oauthErrorMessages: Record<string, string> = {
+  invalid_state: "Erreur de sécurité (CSRF). Veuillez réessayer.",
+  no_code: "Code d'autorisation manquant.",
+  token_exchange: "Échec de l'échange de token avec Instagram.",
+  oauth_failed:
+    "Erreur lors de la connexion Instagram. Vérifiez que votre compte est bien un compte professionnel (Business ou Creator).",
+  not_professional:
+    "Le compte Instagram doit être de type Business ou Creator.",
+  db_error: "Erreur lors de la sauvegarde du canal. Réessayez.",
+  access_denied: "Connexion annulée.",
+  not_configured: "La configuration Instagram n'est pas encore activée.",
+};
+
+export default async function ChannelsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connected?: string; error?: string }>;
+}) {
+  const { connected, error } = await searchParams;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,16 +76,29 @@ export default async function ChannelsPage() {
         Gérez vos canaux de communication.
       </p>
 
+      {connected && (
+        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          Compte Instagram connecté avec succès.
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {oauthErrorMessages[error] ?? `Erreur : ${error}`}
+        </div>
+      )}
+
       <div className="mt-6 space-y-4">
         {allChannelTypes.map((type) => {
-          const channel = channels?.find(
-            (c: Channel) => c.type === type,
-          );
+          const channel = channels?.find((c: Channel) => c.type === type);
           const meta = channelMeta[type];
           const Icon = meta.icon;
           const status = channel
             ? statusLabels[channel.status]
-            : { label: "Non connecté", className: "bg-gray-100 text-gray-500" };
+            : {
+                label: "Non connecté",
+                className: "bg-gray-100 text-gray-500",
+              };
 
           return (
             <div
@@ -92,8 +124,18 @@ export default async function ChannelsPage() {
                 </div>
                 <p className="text-sm text-gray-500">{meta.description}</p>
               </div>
-              {type !== "demo" && !channel && (
-                <span className="text-xs text-gray-400">
+
+              {type === "instagram" && !channel && (
+                <a
+                  href="/api/auth/instagram"
+                  className="shrink-0 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  Connecter Instagram
+                </a>
+              )}
+
+              {type === "whatsapp" && !channel && (
+                <span className="shrink-0 text-xs text-gray-400">
                   Bientôt disponible
                 </span>
               )}
