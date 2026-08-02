@@ -112,7 +112,9 @@ export async function GET(request: NextRequest) {
     let pageAccessToken: string | null = null;
 
     for (const page of pages) {
+      console.log(`Checking page ${page.name} (${page.id}) for Instagram account...`);
       const igId = await getInstagramAccountFromPage(page.id, page.access_token);
+      console.log(`  Result: ${igId ? igId : "not found"}`);
       if (igId) {
         instagramAccountId = igId;
         pageAccessToken = page.access_token;
