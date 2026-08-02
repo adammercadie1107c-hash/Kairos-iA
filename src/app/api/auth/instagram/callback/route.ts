@@ -63,6 +63,13 @@ export async function GET(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
+  console.log("OAuth callback — env vars:", {
+    appId: appId ? "✓" : "✗",
+    appSecret: appSecret ? `✓ (len=${appSecret.length})` : "✗",
+    redirectUri: redirectUri ? "✓" : "✗",
+    code: code ? "✓" : "✗",
+  });
+
   try {
     // 1. Short-lived user token
     const { access_token: shortToken } = await exchangeCodeForToken(
