@@ -60,14 +60,14 @@ export async function exchangeForLongLivedToken(
 
 /** List Facebook Pages the user manages, with their long-lived Page Access Tokens. */
 export async function getUserPages(userAccessToken: string): Promise<FacebookPage[]> {
-  const url = new URL(`${GRAPH_BASE}/me/pages`);
+  const url = new URL(`${GRAPH_BASE}/me/accounts`);
   url.searchParams.set("fields", "id,name,access_token");
   url.searchParams.set("access_token", userAccessToken);
 
   const res = await fetch(url);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`/me/pages failed (${res.status}): ${body}`);
+    throw new Error(`/me/accounts failed (${res.status}): ${body}`);
   }
   const json = await res.json() as { data: FacebookPage[] };
   return json.data ?? [];
