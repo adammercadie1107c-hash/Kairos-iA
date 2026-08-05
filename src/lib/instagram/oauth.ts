@@ -60,34 +60,16 @@ export async function exchangeForLongLivedToken(
 
 /** List Facebook Pages the user manages, with their long-lived Page Access Tokens. */
 export async function getUserPages(userAccessToken: string): Promise<FacebookPage[]> {
-  // Debug: check what /me returns to confirm token is valid
-  const meUrl = new URL(`${GRAPH_BASE}/me`);
-  meUrl.searchParams.set("fields", "id,name");
-  meUrl.searchParams.set("access_token", userAccessToken);
-  const meRes = await fetch(meUrl);
-  const meJson = await meRes.text();
-  console.log("/me response:", meRes.status, meJson);
-
-  // Debug: check token permissions
-  const debugUrl = new URL(`${GRAPH_BASE}/debug_token`);
-  debugUrl.searchParams.set("input_token", userAccessToken);
-  debugUrl.searchParams.set("access_token", userAccessToken);
-  const debugRes = await fetch(debugUrl);
-  const debugJson = await debugRes.text();
-  console.log("/debug_token response:", debugRes.status, debugJson);
-
   const url = new URL(`${GRAPH_BASE}/me/accounts`);
   url.searchParams.set("fields", "id,name,access_token");
   url.searchParams.set("access_token", userAccessToken);
 
   const res = await fetch(url);
-  const rawBody = await res.text();
-  console.log("/me/accounts response:", res.status, rawBody);
-
   if (!res.ok) {
-    throw new Error(`/me/accounts failed (${res.status}): ${rawBody}`);
+    const body = await res.text();
+    throw new Error(`/me/accounts failed (${res.status}): ${body}`);
   }
-  const json = JSON.parse(rawBody) as { data: FacebookPage[] };
+  const json = (await res.json()) as { data: FacebookPage[] };
   return json.data ?? [];
 }
 

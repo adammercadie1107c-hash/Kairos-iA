@@ -73,52 +73,31 @@ export async function GET(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
-  console.log("OAuth callback — env vars:", {
-    appId: appId ? "✓" : "✗",
-    appSecret: appSecret ? `✓ (len=${appSecret.length})` : "✗",
-    redirectUri: redirectUri ? "✓" : "✗",
-    code: code ? "✓" : "✗",
-  });
-
   try {
-    // 1. Short-lived user token
-    console.log("Step 1: Exchanging code for short-lived token...");
     const { access_token: shortToken } = await exchangeCodeForToken(
       code,
       appId,
       appSecret,
       redirectUri,
     );
-    console.log(`  Short token obtained (len=${shortToken.length})`);
 
-    // 2. Long-lived user token (~60 days)
-    console.log("Step 2: Exchanging short token for long-lived token...");
     const { access_token: longUserToken } = await exchangeForLongLivedToken(
       shortToken,
       appId,
       appSecret,
     );
-    console.log(`  Long-lived token obtained (len=${longUserToken.length})`);
 
-    // 3. List Facebook Pages managed by the user
     const pages = await getUserPages(longUserToken);
-    console.log("Pages found:", {
-      count: pages.length,
-      pages: pages.map((p) => ({ id: p.id, name: p.name })),
-    });
 
     if (pages.length === 0) {
       return redirectWithError("no_pages");
     }
 
-    // 4. Find the first Page with a connected Instagram Professional account
     let instagramAccountId: string | null = null;
     let pageAccessToken: string | null = null;
 
     for (const page of pages) {
-      console.log(`Checking page ${page.name} (${page.id}) for Instagram account...`);
       const igId = await getInstagramAccountFromPage(page.id, page.access_token);
-      console.log(`  Result: ${igId ? igId : "not found"}`);
       if (igId) {
         instagramAccountId = igId;
         pageAccessToken = page.access_token;

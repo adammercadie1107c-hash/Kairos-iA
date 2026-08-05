@@ -31,12 +31,21 @@ export async function GET(_request: NextRequest) {
   const nonce = crypto.randomUUID();
 
   // Facebook Login for Business — authorization dialog
+  const scopes = [
+    "pages_show_list",
+    "pages_read_engagement",
+    "instagram_basic",
+    "instagram_manage_messages",
+    "business_management",
+  ].join(",");
+
   const authUrl = new URL("https://www.facebook.com/dialog/oauth");
   authUrl.searchParams.set("client_id", appId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "pages_show_list");
+  authUrl.searchParams.set("scope", scopes);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("state", nonce);
+  authUrl.searchParams.set("auth_type", "rerequest");
 
   const response = NextResponse.redirect(authUrl);
   response.cookies.set("ig_oauth_state", nonce, {
