@@ -82,19 +82,23 @@ export async function GET(request: NextRequest) {
 
   try {
     // 1. Short-lived user token
+    console.log("Step 1: Exchanging code for short-lived token...");
     const { access_token: shortToken } = await exchangeCodeForToken(
       code,
       appId,
       appSecret,
       redirectUri,
     );
+    console.log(`  Short token obtained (len=${shortToken.length})`);
 
     // 2. Long-lived user token (~60 days)
+    console.log("Step 2: Exchanging short token for long-lived token...");
     const { access_token: longUserToken } = await exchangeForLongLivedToken(
       shortToken,
       appId,
       appSecret,
     );
+    console.log(`  Long-lived token obtained (len=${longUserToken.length})`);
 
     // 3. List Facebook Pages managed by the user
     const pages = await getUserPages(longUserToken);
