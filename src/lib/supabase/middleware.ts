@@ -33,10 +33,14 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup");
 
+  const isPublicPage =
+    request.nextUrl.pathname === "/privacy" ||
+    request.nextUrl.pathname === "/terms";
+
   const isWebhook = request.nextUrl.pathname.startsWith("/api/webhooks/");
   const isIgOAuth = request.nextUrl.pathname.startsWith("/api/auth/instagram");
 
-  if (!user && !isAuthPage && !isWebhook && !isIgOAuth && request.nextUrl.pathname !== "/") {
+  if (!user && !isAuthPage && !isPublicPage && !isWebhook && !isIgOAuth && request.nextUrl.pathname !== "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
