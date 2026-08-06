@@ -45,10 +45,15 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
+  console.log("[webhook] signature present:", !!signature);
+  console.log("[webhook] secret present:", !!appSecret);
+
   const signatureValid = verifySignature(rawBody, signature, appSecret);
 
+  console.log("[webhook] signature valid:", signatureValid);
+
   if (!signatureValid) {
-    console.warn("[webhook] signature mismatch — processing anyway (fix META_APP_SECRET)");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let payload: IGWebhookPayload;
