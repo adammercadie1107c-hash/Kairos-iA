@@ -5,20 +5,11 @@ import {
   exchangeForLongLivedToken,
   getUserPages,
   getInstagramAccountFromPage,
+  subscribePageToApp,
+  getInstagramUsername,
 } from "@/lib/instagram/oauth";
 import type { InstagramCredentials } from "@/lib/instagram/types";
 
-/**
- * GET /api/auth/instagram/callback
- *
- * Handles the OAuth callback from Facebook Login for Business.
- * Flow:
- *   code → short-lived user token → long-lived user token
- *   → list Facebook Pages → find Page with linked Instagram account
- *   → upsert channel with Page Access Token + Instagram account ID
- *
- * The token is stored server-side only; never exposed to the browser.
- */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
 
@@ -27,7 +18,6 @@ export async function GET(request: NextRequest) {
   const metaError = searchParams.get("error");
   const metaErrorDescription = searchParams.get("error_description");
 
-  // Helper to redirect with error params, using request URL origin
   const redirectWithError = (errorKey: string) => {
     const url = request.nextUrl.clone();
     url.pathname = "/channels";
@@ -41,7 +31,6 @@ export async function GET(request: NextRequest) {
     return redirectWithError(key);
   }
 
-  // CSRF — char-by-char comparison prevents timing attacks
   const storedState = request.cookies.get("ig_oauth_state")?.value;
   const stateValid =
     typeof storedState === "string" &&
@@ -95,25 +84,34 @@ export async function GET(request: NextRequest) {
 
     let instagramAccountId: string | null = null;
     let pageAccessToken: string | null = null;
+    let pageId: string | null = null;
 
     for (const page of pages) {
       const igId = await getInstagramAccountFromPage(page.id, page.access_token);
       if (igId) {
         instagramAccountId = igId;
         pageAccessToken = page.access_token;
+        pageId = page.id;
         break;
       }
     }
 
-    if (!instagramAccountId || !pageAccessToken) {
+    if (!instagramAccountId || !pageAccessToken || !pageId) {
       return redirectWithError("no_instagram_account");
     }
 
-    // 5. Upsert channel — service client bypasses RLS
+    // Subscribe the Page to receive webhook events
+    await subscribePageToApp(pageId, pageAccessToken);
+
+    // Fetch the Instagram username for display
+    const username = await getInstagramUsername(instagramAccountId, pageAccessToken);
+
     const serviceClient = await createServiceClient();
     const credentials: InstagramCredentials = {
       instagram_account_id: instagramAccountId,
       page_access_token: pageAccessToken,
+      page_id: pageId,
+      instagram_username: username ?? undefined,
     };
 
     const { error: upsertError } = await serviceClient
@@ -137,7 +135,6 @@ export async function GET(request: NextRequest) {
     return redirectWithError("oauth_failed");
   }
 
-  // Success redirect
   const successUrl = request.nextUrl.clone();
   successUrl.pathname = "/channels";
   successUrl.search = "?connected=true";

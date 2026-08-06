@@ -2,7 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { MessageSquare, Camera, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DisconnectButton } from "./disconnect-button";
 import type { Channel } from "@/lib/supabase/types";
+import type { InstagramCredentials } from "@/lib/instagram/types";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Canaux — Kairos iA" };
@@ -29,8 +31,8 @@ const channelMeta: Record<
 };
 
 const statusLabels: Record<string, { label: string; className: string }> = {
-  active: { label: "Actif", className: "bg-green-100 text-green-700" },
-  inactive: { label: "Inactif", className: "bg-gray-100 text-gray-600" },
+  active: { label: "Connecté", className: "bg-green-100 text-green-700" },
+  inactive: { label: "Déconnecté", className: "bg-gray-100 text-gray-600" },
   pending: { label: "En attente", className: "bg-yellow-100 text-yellow-700" },
 };
 
@@ -45,7 +47,8 @@ const oauthErrorMessages: Record<string, string> = {
   db_error: "Erreur lors de la sauvegarde du canal. Réessayez.",
   access_denied: "Connexion annulée.",
   not_configured: "La configuration Instagram n'est pas encore activée.",
-  no_pages: "Aucune Page Facebook trouvée. Votre compte doit gérer au moins une Page.",
+  no_pages:
+    "Aucune Page Facebook trouvée. Votre compte doit gérer au moins une Page.",
   no_instagram_account:
     "Aucun compte Instagram Professional trouvé lié à vos Pages Facebook. Connectez votre compte Instagram Business ou Creator à une Page Facebook dans les paramètres Instagram.",
 };
@@ -96,12 +99,24 @@ export default async function ChannelsPage({
           const channel = channels?.find((c: Channel) => c.type === type);
           const meta = channelMeta[type];
           const Icon = meta.icon;
-          const status = channel
-            ? statusLabels[channel.status]
-            : {
-                label: "Non connecté",
-                className: "bg-gray-100 text-gray-500",
-              };
+
+          const isConnected = channel?.status === "active";
+          const isInactive = channel?.status === "inactive";
+          const showConnect = type === "instagram" && (!channel || isInactive);
+
+          const igCredentials =
+            type === "instagram" && isConnected
+              ? (channel.credentials as unknown as InstagramCredentials)
+              : null;
+          const igUsername = igCredentials?.instagram_username;
+
+          const status =
+            channel && !isInactive
+              ? statusLabels[channel.status]
+              : {
+                  label: "Non connecté",
+                  className: "bg-gray-100 text-gray-500",
+                };
 
           return (
             <div
@@ -111,7 +126,7 @@ export default async function ChannelsPage({
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
                 <Icon className="h-5 w-5 text-gray-600" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-900">
                     {meta.label}
@@ -125,23 +140,33 @@ export default async function ChannelsPage({
                     {status.label}
                   </span>
                 </div>
-                <p className="text-sm text-gray-500">{meta.description}</p>
+                {igUsername ? (
+                  <p className="text-sm text-gray-500 truncate">
+                    @{igUsername}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">{meta.description}</p>
+                )}
               </div>
 
-              {type === "instagram" && !channel && (
-                <a
-                  href="/api/auth/instagram"
-                  className="shrink-0 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-                >
-                  Connecter Instagram
-                </a>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {showConnect && (
+                  <a
+                    href="/api/auth/instagram"
+                    className="rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                  >
+                    Connecter Instagram
+                  </a>
+                )}
 
-              {type === "whatsapp" && !channel && (
-                <span className="shrink-0 text-xs text-gray-400">
-                  Bientôt disponible
-                </span>
-              )}
+                {type === "instagram" && isConnected && <DisconnectButton />}
+
+                {type === "whatsapp" && !channel && (
+                  <span className="text-xs text-gray-400">
+                    Bientôt disponible
+                  </span>
+                )}
+              </div>
             </div>
           );
         })}

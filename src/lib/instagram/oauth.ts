@@ -17,7 +17,6 @@ export interface FacebookPage {
   access_token: string;
 }
 
-/** Exchange authorization code for a short-lived user access token (Facebook OAuth). */
 export async function exchangeCodeForToken(
   code: string,
   appId: string,
@@ -38,7 +37,6 @@ export async function exchangeCodeForToken(
   return res.json() as Promise<UserTokenResponse>;
 }
 
-/** Exchange a short-lived user token for a long-lived one (~60 days). */
 export async function exchangeForLongLivedToken(
   shortToken: string,
   appId: string,
@@ -58,7 +56,6 @@ export async function exchangeForLongLivedToken(
   return res.json() as Promise<LongLivedTokenResponse>;
 }
 
-/** List Facebook Pages the user manages, with their long-lived Page Access Tokens. */
 export async function getUserPages(userAccessToken: string): Promise<FacebookPage[]> {
   const url = new URL(`${GRAPH_BASE}/me/accounts`);
   url.searchParams.set("fields", "id,name,access_token");
@@ -73,10 +70,6 @@ export async function getUserPages(userAccessToken: string): Promise<FacebookPag
   return json.data ?? [];
 }
 
-/**
- * Return the Instagram Business Account ID linked to a Facebook Page,
- * or null if no Instagram account is connected.
- */
 export async function getInstagramAccountFromPage(
   pageId: string,
   pageAccessToken: string,
@@ -89,4 +82,39 @@ export async function getInstagramAccountFromPage(
   if (!res.ok) return null;
   const json = await res.json() as { instagram_business_account?: { id: string } };
   return json.instagram_business_account?.id ?? null;
+}
+
+export async function subscribePageToApp(
+  pageId: string,
+  pageAccessToken: string,
+): Promise<boolean> {
+  const url = new URL(`${GRAPH_BASE}/${pageId}/subscribed_apps`);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      subscribed_fields: "messages",
+      access_token: pageAccessToken,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`subscribed_apps failed (${res.status}):`, body);
+    return false;
+  }
+  return true;
+}
+
+export async function getInstagramUsername(
+  igAccountId: string,
+  pageAccessToken: string,
+): Promise<string | null> {
+  const url = new URL(`${GRAPH_BASE}/${igAccountId}`);
+  url.searchParams.set("fields", "username");
+  url.searchParams.set("access_token", pageAccessToken);
+
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json() as { username?: string };
+  return json.username ?? null;
 }
