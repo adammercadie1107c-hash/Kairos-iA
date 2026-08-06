@@ -38,14 +38,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET;
   if (!appSecret) {
-    console.error("META_APP_SECRET not configured");
+    console.error("[webhook] META_APP_SECRET not configured");
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
 
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
-  if (!verifySignature(rawBody, signature, appSecret)) {
+  console.log("[webhook] signature header present:", !!signature);
+  console.log("[webhook] META_APP_SECRET present:", !!appSecret, "len:", appSecret.length);
+  console.log("[webhook] body length:", rawBody.length);
+
+  const signatureValid = verifySignature(rawBody, signature, appSecret);
+  console.log("[webhook] signature valid:", signatureValid);
+
+  if (!signatureValid) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
