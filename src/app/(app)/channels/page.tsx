@@ -144,6 +144,8 @@ export default async function ChannelsPage({
                   <p className="text-sm text-gray-500 truncate">
                     @{igUsername}
                   </p>
+                ) : isConnected && type === "instagram" ? (
+                  <p className="text-sm text-gray-500">Compte connecté</p>
                 ) : (
                   <p className="text-sm text-gray-500">{meta.description}</p>
                 )}

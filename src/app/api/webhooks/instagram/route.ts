@@ -132,6 +132,31 @@ async function handleInboundMessage(
   const credentials = channel.credentials as unknown as InstagramCredentials;
   const userId = channel.user_id;
 
+  // Backfill missing metadata on first message
+  if (!credentials.instagram_username || !credentials.page_id) {
+    try {
+      const { getInstagramUsername } = await import("@/lib/instagram/oauth");
+      if (!credentials.instagram_username && credentials.page_access_token) {
+        const username = await getInstagramUsername(igAccountId, credentials.page_access_token);
+        if (username) credentials.instagram_username = username;
+      }
+      if (!credentials.page_id && credentials.page_access_token) {
+        const res = await fetch(
+          `https://graph.facebook.com/v20.0/me?fields=id&access_token=${encodeURIComponent(credentials.page_access_token)}`,
+        );
+        if (res.ok) {
+          const json = (await res.json()) as { id: string };
+          credentials.page_id = json.id;
+        }
+      }
+      await supabase
+        .from("channels")
+        .update({ credentials: { ...credentials } })
+        .eq("id", channel.id);
+    } catch (err) {
+      console.error("[webhook] metadata backfill error:", err);
+    }
+  }
 
 
   // Load agent config
