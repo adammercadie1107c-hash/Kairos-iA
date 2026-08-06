@@ -98,14 +98,31 @@ async function handleInboundMessage(
   senderId: string,
   text: string,
 ): Promise<string> {
-  // Find channel by Instagram account ID
-  const { data: channel } = await supabase
+  // Find channel by Instagram account ID — fetch all active IG channels, match in JS
+  const { data: channels, error: channelError } = await supabase
     .from("channels")
-    .select("*")
+    .select("id, user_id, type, status, credentials")
     .eq("type", "instagram")
-    .eq("status", "active")
-    .eq("credentials->>instagram_account_id", igAccountId)
-    .maybeSingle();
+    .eq("status", "active");
+
+  if (channelError) {
+    console.error("[webhook] channel query error:", channelError.code, channelError.message, channelError.details);
+    return "channel_query_error";
+  }
+
+  const supabaseRef = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const igIds = (channels ?? []).map((c) => (c.credentials as Record<string, unknown>)?.instagram_account_id);
+  console.log("[webhook] supabase ref:", supabaseRef);
+  console.log("[webhook] active IG channels found:", channels?.length ?? 0);
+  console.log("[webhook] IG account IDs in DB:", igIds);
+  console.log("[webhook] igAccountId from payload:", igAccountId);
+
+  const channel = channels?.find(
+    (item) =>
+      String((item.credentials as Record<string, unknown>)?.instagram_account_id) === String(igAccountId),
+  );
+
+  console.log("[webhook] channel matched:", !!channel);
 
   if (!channel) {
     console.error(`No active Instagram channel for account ${igAccountId}`);
