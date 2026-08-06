@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { verifySignature } from "@/lib/instagram/verify";
-import { sendInstagramMessage } from "@/lib/instagram/send";
+import { sendInstagramMessage, resolvePageId } from "@/lib/instagram/send";
 import { runAgent } from "@/lib/agent/engine";
 import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
@@ -131,6 +131,24 @@ async function handleInboundMessage(
 
   const credentials = channel.credentials as unknown as InstagramCredentials;
   const userId = channel.user_id;
+
+  // Resolve page_id if missing and persist it
+  if (!credentials.page_id && credentials.page_access_token) {
+    try {
+      const resolvedPageId = await resolvePageId(credentials.page_access_token);
+      credentials.page_id = resolvedPageId;
+      await supabase
+        .from("channels")
+        .update({
+          credentials: { ...credentials },
+        })
+        .eq("id", channel.id);
+      console.log("[webhook] resolved and stored page_id:", resolvedPageId);
+    } catch (err) {
+      console.error("[webhook] failed to resolve page_id:", err);
+      return "missing_page_id";
+    }
+  }
 
   // Load agent config
   const { data: config } = await supabase
@@ -263,6 +281,7 @@ async function handleInboundMessage(
     senderId,
     decision.message,
     credentials.page_access_token,
+    credentials.page_id,
   );
 
   // Update contact extracted info

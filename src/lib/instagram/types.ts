@@ -27,5 +27,6 @@ export interface IGSendResponse {
 
 export interface InstagramCredentials {
   page_access_token: string;
+  page_id: string;
   instagram_account_id: string;
 }

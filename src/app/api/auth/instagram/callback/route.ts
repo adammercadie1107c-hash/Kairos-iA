@@ -95,17 +95,19 @@ export async function GET(request: NextRequest) {
 
     let instagramAccountId: string | null = null;
     let pageAccessToken: string | null = null;
+    let pageId: string | null = null;
 
     for (const page of pages) {
       const igId = await getInstagramAccountFromPage(page.id, page.access_token);
       if (igId) {
         instagramAccountId = igId;
         pageAccessToken = page.access_token;
+        pageId = page.id;
         break;
       }
     }
 
-    if (!instagramAccountId || !pageAccessToken) {
+    if (!instagramAccountId || !pageAccessToken || !pageId) {
       return redirectWithError("no_instagram_account");
     }
 
@@ -114,6 +116,7 @@ export async function GET(request: NextRequest) {
     const credentials: InstagramCredentials = {
       instagram_account_id: instagramAccountId,
       page_access_token: pageAccessToken,
+      page_id: pageId,
     };
 
     const { error: upsertError } = await serviceClient
