@@ -102,7 +102,7 @@ async function handleInboundMessage(
     .select("*")
     .eq("type", "instagram")
     .eq("status", "active")
-    .filter("credentials->instagram_account_id", "eq", igAccountId)
+    .filter("credentials->>instagram_account_id", "eq", igAccountId)
     .maybeSingle();
 
   if (!channel) {
