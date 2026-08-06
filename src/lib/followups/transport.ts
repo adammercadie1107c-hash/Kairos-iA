@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendInstagramMessage, resolvePageId } from "@/lib/instagram/send";
+import { sendInstagramMessage } from "@/lib/instagram/send";
 import type { InstagramCredentials } from "@/lib/instagram/types";
 
 export interface SendFollowupParams {
@@ -110,15 +110,10 @@ export class InstagramFollowupTransport implements FollowupTransport {
     const credentials = channel.credentials as unknown as InstagramCredentials;
 
     try {
-      let pageId = credentials.page_id;
-      if (!pageId) {
-        pageId = await resolvePageId(credentials.page_access_token);
-      }
       await sendInstagramMessage(
         contact.external_id,
         params.content,
         credentials.page_access_token,
-        pageId,
       );
     } catch (err) {
       return {
