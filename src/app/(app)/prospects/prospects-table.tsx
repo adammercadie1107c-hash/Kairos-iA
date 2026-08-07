@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Prospect } from "@/lib/supabase/types";
+import type { ProspectScore, ScoreLevel } from "@/lib/prospects/scoring";
 import { ProspectForm } from "./prospect-form";
 import { DeleteDialog } from "./delete-dialog";
 
@@ -37,14 +38,22 @@ const STATUS_FILTERS = [
   { value: "perdu", label: "Perdu" },
 ] as const;
 
-type SortKey = "name" | "company" | "status" | "next_followup_at" | "created_at";
+type SortKey = "name" | "company" | "status" | "score" | "next_followup_at" | "created_at";
 type SortDir = "asc" | "desc";
+
+const SCORE_COLORS: Record<ScoreLevel, { bg: string; text: string }> = {
+  fort: { bg: "bg-green-100", text: "text-green-700" },
+  moyen: { bg: "bg-yellow-100", text: "text-yellow-700" },
+  faible: { bg: "bg-red-100", text: "text-red-600" },
+};
 
 export function ProspectsTable({
   prospects,
+  scores,
   autoOpen,
 }: {
   prospects: Prospect[];
+  scores?: Record<string, ProspectScore>;
   autoOpen?: boolean;
 }) {
   const [search, setSearch] = useState("");
@@ -101,6 +110,9 @@ export function ProspectsTable({
           (a.next_followup_at ?? "9999").localeCompare(
             b.next_followup_at ?? "9999",
           );
+        break;
+      case "score":
+        cmp = (scores?.[a.id]?.score ?? 0) - (scores?.[b.id]?.score ?? 0);
         break;
       case "created_at":
         cmp = a.created_at.localeCompare(b.created_at);
@@ -203,6 +215,9 @@ export function ProspectsTable({
                   </Th>
                   <th className="px-4 py-3 font-medium text-gray-600">Contact</th>
                   <th className="px-4 py-3 font-medium text-gray-600">Qualification</th>
+                  <Th onClick={() => toggleSort("score")}>
+                    Score {sortIcon("score")}
+                  </Th>
                   <Th onClick={() => toggleSort("status")}>
                     Statut {sortIcon("status")}
                   </Th>
@@ -249,6 +264,17 @@ export function ProspectsTable({
                           </div>
                         )}
                         {!p.next_action && !p.notes && "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {scores?.[p.id] ? (() => {
+                          const s = scores[p.id];
+                          const sc = SCORE_COLORS[s.level];
+                          return (
+                            <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", sc.bg, sc.text)}>
+                              {s.score}
+                            </span>
+                          );
+                        })() : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -325,14 +351,25 @@ export function ProspectsTable({
                         <p className="text-sm text-gray-500">{p.company}</p>
                       )}
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                        st.className,
-                      )}
-                    >
-                      {st.label}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {scores?.[p.id] && (() => {
+                        const s = scores[p.id];
+                        const sc = SCORE_COLORS[s.level];
+                        return (
+                          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", sc.bg, sc.text)}>
+                            {s.score}
+                          </span>
+                        );
+                      })()}
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs font-medium",
+                          st.className,
+                        )}
+                      >
+                        {st.label}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-2 space-y-1 text-sm text-gray-500">

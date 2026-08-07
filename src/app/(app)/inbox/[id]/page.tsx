@@ -6,6 +6,8 @@ import Link from "next/link";
 import { ConversationControls } from "./controls";
 import { ReactivateAiButton } from "./reactivate-ai-button";
 import { DeleteConversationButton } from "./delete-button";
+import { computeProspectScore, type ScoreLevel } from "@/lib/prospects/scoring";
+import type { ConversationStatus } from "@/lib/supabase/types";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Conversation — Kairos iA" };
@@ -374,21 +376,45 @@ export default async function ConversationPage({
             </div>
           )}
 
-          {contact?.extracted_info && Object.keys(contact.extracted_info).length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">
-                Infos collectées
-              </p>
-              <div className="space-y-1.5">
-                {Object.entries(contact.extracted_info).map(([key, value]) => (
-                  <div key={key} className="text-xs">
-                    <span className="font-medium text-gray-700">{key} :</span>{" "}
-                    <span className="text-gray-600">{value}</span>
+          {contact?.extracted_info && Object.keys(contact.extracted_info).length > 0 && (() => {
+            const score = computeProspectScore(
+              contact.extracted_info,
+              conversation.status as ConversationStatus,
+            );
+            const scoreColors: Record<ScoreLevel, string> = {
+              fort: "text-green-700 bg-green-100",
+              moyen: "text-yellow-700 bg-yellow-100",
+              faible: "text-red-600 bg-red-100",
+            };
+            return (
+              <>
+                <div>
+                  <p className="text-xs text-gray-500">Score prospect</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", scoreColors[score.level])}>
+                      {score.score}/100
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {score.level === "fort" ? "Fort" : score.level === "moyen" ? "Moyen" : "Faible"}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">
+                    Infos collectées
+                  </p>
+                  <div className="space-y-1.5">
+                    {Object.entries(contact.extracted_info).map(([key, value]) => (
+                      <div key={key} className="text-xs">
+                        <span className="font-medium text-gray-700">{key} :</span>{" "}
+                        <span className="text-gray-600">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

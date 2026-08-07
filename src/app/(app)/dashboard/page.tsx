@@ -2,17 +2,23 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cn, todayDateStr } from "@/lib/utils";
+import { fetchDashboardKpis, type Period } from "@/lib/dashboard/kpis";
 import type { Prospect } from "@/lib/supabase/types";
 import type { Metadata } from "next";
 import {
   Users,
-  UserPlus,
+  MessageSquare,
+  UserCheck,
   CalendarClock,
   AlertTriangle,
   Trophy,
+  XCircle,
   TrendingUp,
   Plus,
   ArrowRight,
+  Send,
+  HeadphonesIcon,
+  RotateCcw,
 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Dashboard — Kairos iA" };
@@ -25,37 +31,38 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   perdu: { label: "Perdu", className: "bg-red-100 text-red-600" },
 };
 
-export default async function DashboardPage() {
+const PERIODS: Array<{ value: Period; label: string }> = [
+  { value: "7d", label: "7 jours" },
+  { value: "30d", label: "30 jours" },
+  { value: "all", label: "Total" },
+];
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data, error } = await supabase
+  const period: Period =
+    params.period === "7d" || params.period === "30d" || params.period === "all"
+      ? params.period
+      : "30d";
+
+  const kpis = await fetchDashboardKpis(supabase, user.id, period);
+
+  const { data: allProspects } = await supabase
     .from("prospects")
     .select("*")
     .eq("user_id", user.id);
 
-  if (error) {
-    return (
-      <div className="p-4 sm:p-6">
-        <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
-        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">
-            Erreur lors du chargement : {error.message}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const prospects = (data ?? []) as Prospect[];
+  const prospects = (allProspects ?? []) as Prospect[];
   const todayStr = todayDateStr();
-
-  const total = prospects.length;
-  const nouveaux = prospects.filter((p) => p.status === "nouveau").length;
-  const gagnes = prospects.filter((p) => p.status === "gagne").length;
 
   const relancesToday = prospects.filter(
     (p) =>
@@ -72,8 +79,6 @@ export default async function DashboardPage() {
       p.status !== "perdu",
   ).length;
 
-  const conversionRate = total > 0 ? Math.round((gagnes / total) * 100) : 0;
-
   const upcomingFollowups = prospects
     .filter(
       (p) =>
@@ -87,11 +92,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500">
-            Vue d&apos;ensemble de vos prospects
+            Vue d&apos;ensemble de votre activité
           </p>
         </div>
         <div className="flex gap-2">
@@ -113,56 +119,159 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Period selector */}
+      <div className="flex gap-1.5">
+        {PERIODS.map((p) => (
+          <Link
+            key={p.value}
+            href={`/dashboard?period=${p.value}`}
+            className={cn(
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              period === p.value
+                ? "bg-blue-100 text-blue-700"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+            )}
+          >
+            {p.label}
+          </Link>
+        ))}
+      </div>
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <KpiCard
+          icon={MessageSquare}
+          label="Conversations"
+          value={kpis.conversationsReceived}
+          color="blue"
+          href="/inbox"
+        />
         <KpiCard
           icon={Users}
-          label="Total prospects"
-          value={total}
+          label="En qualification"
+          value={kpis.prospetsQualifying}
           color="blue"
-          href="/prospects"
+          href="/inbox"
         />
         <KpiCard
-          icon={UserPlus}
-          label="Nouveaux"
-          value={nouveaux}
-          color="blue"
-          href="/prospects"
-        />
-        <KpiCard
-          icon={CalendarClock}
-          label="Relances aujourd'hui"
-          value={relancesToday}
-          color="orange"
-          href="/relances"
-        />
-        <KpiCard
-          icon={AlertTriangle}
-          label="En retard"
-          value={relancesOverdue}
-          color="red"
-          href="/relances"
-        />
-        <KpiCard
-          icon={Trophy}
-          label="Gagnés"
-          value={gagnes}
+          icon={UserCheck}
+          label="Qualifiés"
+          value={kpis.prospectsQualified}
           color="green"
           href="/prospects"
         />
         <KpiCard
           icon={TrendingUp}
-          label="Conversion"
-          value={`${conversionRate}%`}
+          label="Taux qualification"
+          value={`${kpis.qualificationRate}%`}
           color="green"
+        />
+        <KpiCard
+          icon={Send}
+          label="Booking envoyé"
+          value={kpis.bookingSent}
+          color="purple"
+          href="/inbox"
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <KpiCard
+          icon={HeadphonesIcon}
+          label="Handoffs"
+          value={kpis.handoffs}
+          color="orange"
+          href="/inbox"
+        />
+        <KpiCard
+          icon={RotateCcw}
+          label="Relances exécutées"
+          value={kpis.followupsExecuted}
+          color="blue"
+          href="/relances"
+        />
+        <KpiCard
+          icon={Trophy}
+          label="Gagnés"
+          value={kpis.prospectsWon}
+          color="green"
+          href="/prospects"
+        />
+        <KpiCard
+          icon={XCircle}
+          label="Perdus"
+          value={kpis.prospectsLost}
+          color="red"
+          href="/prospects"
+        />
+        <KpiCard
+          icon={AlertTriangle}
+          label="Relances en retard"
+          value={relancesOverdue}
+          color="red"
+          href="/relances"
+        />
+      </div>
+
+      {/* Pipeline */}
+      <section className="rounded-lg border border-gray-200 bg-white p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">Pipeline</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+          <PipelineStep
+            label="Nouveau"
+            count={kpis.pipeline.new}
+            color="bg-gray-200 text-gray-700"
+          />
+          <PipelineArrow />
+          <PipelineStep
+            label="Qualification"
+            count={kpis.pipeline.qualifying}
+            color="bg-blue-100 text-blue-700"
+          />
+          <PipelineArrow />
+          <PipelineStep
+            label="Qualifié"
+            count={kpis.pipeline.qualified}
+            color="bg-green-100 text-green-700"
+          />
+          <PipelineArrow />
+          <PipelineStep
+            label="Booking"
+            count={kpis.pipeline.booking_sent}
+            color="bg-purple-100 text-purple-700"
+          />
+          <PipelineArrow />
+          <div className="flex gap-2">
+            <PipelineStep
+              label="Gagné"
+              count={kpis.prospectsWon}
+              color="bg-green-100 text-green-700"
+            />
+            <PipelineStep
+              label="Perdu"
+              count={kpis.prospectsLost}
+              color="bg-red-100 text-red-600"
+            />
+          </div>
+        </div>
+        {kpis.pipeline.handoff > 0 && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-orange-600">
+            <HeadphonesIcon className="h-4 w-4" />
+            {kpis.pipeline.handoff} en reprise humaine
+          </div>
+        )}
+      </section>
+
       {/* Upcoming follow-ups */}
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
           <h2 className="text-sm font-semibold text-gray-900">
             Prochaines relances
+            {relancesToday > 0 && (
+              <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-600">
+                {relancesToday} aujourd&apos;hui
+              </span>
+            )}
           </h2>
           <Link
             href="/relances"
@@ -194,9 +303,10 @@ export default async function DashboardPage() {
               };
               const isToday = p.next_followup_at === todayStr;
               return (
-                <div
+                <Link
                   key={p.id}
-                  className="flex items-center gap-3 px-5 py-3"
+                  href={`/prospects/${p.id}`}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-600">
                     {(p.first_name || p.last_name || "?")[0].toUpperCase()}
@@ -215,15 +325,9 @@ export default async function DashboardPage() {
                         {st.label}
                       </span>
                     </div>
-                    <div className="flex gap-3 text-xs text-gray-500">
-                      {p.company && <span>{p.company}</span>}
-                      {(p.email || p.phone) && (
-                        <span>{p.email || p.phone}</span>
-                      )}
-                    </div>
                     {p.next_action && (
                       <p className="text-xs text-blue-600 truncate">
-                        → {p.next_action}
+                        {p.next_action}
                       </p>
                     )}
                   </div>
@@ -242,12 +346,12 @@ export default async function DashboardPage() {
                           )}
                     </span>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -257,6 +361,7 @@ const kpiColors = {
   green: { bg: "bg-green-50", icon: "text-green-600" },
   orange: { bg: "bg-orange-50", icon: "text-orange-600" },
   red: { bg: "bg-red-50", icon: "text-red-600" },
+  purple: { bg: "bg-purple-50", icon: "text-purple-600" },
 };
 
 function KpiCard({
@@ -298,4 +403,31 @@ function KpiCard({
     );
   }
   return <div className={cls}>{content}</div>;
+}
+
+function PipelineStep({
+  label,
+  count,
+  color,
+}: {
+  label: string;
+  count: number;
+  color: string;
+}) {
+  return (
+    <div className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium", color)}>
+      <span>{label}</span>
+      <span className="rounded-full bg-white/60 px-1.5 py-0.5 text-xs font-bold">
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function PipelineArrow() {
+  return (
+    <span className="hidden sm:block px-1 text-gray-300 text-lg">
+      →
+    </span>
+  );
 }

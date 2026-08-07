@@ -13,8 +13,10 @@ import {
   Phone,
 } from "lucide-react";
 import { extractDisplayFields, buildAiSummary } from "@/lib/prospects/extract-display-fields";
+import { computeProspectScore, type ScoreLevel } from "@/lib/prospects/scoring";
 import { ProspectQuickActions } from "./prospect-actions";
 import type { Metadata } from "next";
+import type { ConversationStatus } from "@/lib/supabase/types";
 
 export const metadata: Metadata = { title: "Fiche prospect — Kairos iA" };
 
@@ -119,6 +121,10 @@ export default async function ProspectDetailPage({
     prospect.phone,
   );
   const aiSummary = buildAiSummary(extractedInfo);
+  const prospectScore = computeProspectScore(
+    extractedInfo,
+    (conversation?.status as ConversationStatus) ?? null,
+  );
 
   const status = PROSPECT_STATUS_CONFIG[prospect.status] ?? {
     label: prospect.status,
@@ -231,6 +237,7 @@ export default async function ProspectDetailPage({
             >
               {status.label}
             </span>
+            <ScoreBadge score={prospectScore.score} level={prospectScore.level} />
           </div>
           {prospect.company && (
             <p className="text-sm text-gray-500">{prospect.company}</p>
@@ -354,6 +361,41 @@ export default async function ProspectDetailPage({
 
         {/* Right column — dates + actions + conversation */}
         <div className="space-y-6">
+          {/* Score */}
+          <section className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-900">Score</h2>
+              <ScoreBadge score={prospectScore.score} level={prospectScore.level} size="lg" />
+            </div>
+            <div className="space-y-2">
+              {prospectScore.criteria.map((c) => (
+                <div key={c.key} className="flex items-center justify-between text-xs">
+                  <span className={c.met ? "text-gray-700" : "text-gray-400"}>
+                    {c.met ? "+" : "-"} {c.label}
+                  </span>
+                  <span className={cn("font-medium", c.met ? "text-green-600" : "text-gray-300")}>
+                    {c.met ? c.points : 0}/{c.points}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {prospectScore.missing.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-[11px] text-gray-400 mb-1">Critères manquants :</p>
+                <div className="flex flex-wrap gap-1">
+                  {prospectScore.missing.map((m) => (
+                    <span
+                      key={m}
+                      className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-600"
+                    >
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
           {/* Quick actions */}
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <h2 className="text-sm font-semibold text-gray-900 mb-3">
@@ -463,6 +505,43 @@ export default async function ProspectDetailPage({
         </div>
       </div>
     </div>
+  );
+}
+
+const SCORE_COLORS: Record<ScoreLevel, { bg: string; text: string; ring: string }> = {
+  fort: { bg: "bg-green-100", text: "text-green-700", ring: "ring-green-200" },
+  moyen: { bg: "bg-yellow-100", text: "text-yellow-700", ring: "ring-yellow-200" },
+  faible: { bg: "bg-red-100", text: "text-red-600", ring: "ring-red-200" },
+};
+
+const LEVEL_LABELS: Record<ScoreLevel, string> = {
+  fort: "Fort",
+  moyen: "Moyen",
+  faible: "Faible",
+};
+
+function ScoreBadge({
+  score,
+  level,
+  size = "sm",
+}: {
+  score: number;
+  level: ScoreLevel;
+  size?: "sm" | "lg";
+}) {
+  const colors = SCORE_COLORS[level];
+  if (size === "lg") {
+    return (
+      <div className={cn("flex items-center gap-1.5 rounded-full px-3 py-1 ring-1", colors.bg, colors.text, colors.ring)}>
+        <span className="text-sm font-bold">{score}</span>
+        <span className="text-xs font-medium">{LEVEL_LABELS[level]}</span>
+      </div>
+    );
+  }
+  return (
+    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colors.bg, colors.text)}>
+      {score}/100
+    </span>
   );
 }
 
