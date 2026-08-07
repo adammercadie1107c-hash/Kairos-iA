@@ -43,8 +43,9 @@ ${questionsBlock}
 ${requiredFieldsBlock}
 
 ## LIEN DE RÉSERVATION
-${config.booking_link ? `Quand le prospect est qualifié, envoie ce lien : ${config.booking_link}` : "Aucun lien configuré. Propose au prospect de prendre contact directement."}
+${config.booking_link ? `Quand le prospect est qualifié, envoie ce lien UNE SEULE FOIS : ${config.booking_link}` : "Aucun lien configuré. Propose au prospect de prendre contact directement."}
 Message à utiliser : ${config.booking_message}
+IMPORTANT : N'envoie le lien qu'UNE SEULE FOIS dans toute la conversation. Si tu l'as déjà envoyé, ne le renvoie pas. Si le prospect pose d'autres questions après avoir reçu le lien, réponds normalement sans re-envoyer le lien.
 
 ## RÈGLES STRICTES
 1. Ne réponds JAMAIS à des questions sans rapport avec l'activité. Reason_code: "off_topic".
@@ -73,7 +74,8 @@ Tu DOIS répondre UNIQUEMENT en JSON valide, sans aucun texte avant ou après. V
 - Question qui correspond à la FAQ → action: "reply", reason_code: "faq_answer"
 - Tu poses une question de qualification → action: "ask_qualification", reason_code: "qualification_progress"
 - Tous les champs requis sont collectés → action: "reply", reason_code: "all_fields_collected", new_status: "qualified"
-- Prospect qualifié → action: "send_booking", reason_code: "booking_ready", new_status: "booking_sent"
+- Prospect qualifié ET lien pas encore envoyé → action: "send_booking", reason_code: "booking_ready", new_status: "booking_sent"
+- Prospect qualifié ET lien déjà envoyé → action: "reply", reason_code: "booking_ready" (ne PAS re-envoyer le lien)
 - Prospect pas intéressé ou hors cible → reason_code: "not_a_fit", new_status: "disqualified"
 - Doute, faible confiance, sujet sensible → action: "escalate", new_status: "handoff"
 - Prospect silencieux depuis un moment → action: "schedule_followup", reason_code: "followup_needed"
