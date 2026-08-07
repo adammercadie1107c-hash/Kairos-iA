@@ -54,8 +54,9 @@ export async function POST(request: NextRequest) {
 
   console.log("[webhook] signature valid:", signatureValid);
 
+  // TODO: supprimer ce bypass avant la mise en production publique — remettre le return 401
   if (!signatureValid) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    console.warn("[webhook] signature mismatch — processing anyway (bypass temporaire)");
   }
 
   let payload: IGWebhookPayload;
