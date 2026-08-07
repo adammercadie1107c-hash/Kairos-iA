@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Plus,
   Pencil,
@@ -9,6 +10,7 @@ import {
   Users,
   ChevronUp,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Prospect } from "@/lib/supabase/types";
@@ -219,9 +221,12 @@ export function ProspectsTable({
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">
+                        <Link
+                          href={`/prospects/${p.id}`}
+                          className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                        >
                           {p.first_name} {p.last_name}
-                        </div>
+                        </Link>
                         {p.company && (
                           <div className="text-xs text-gray-400">{p.company}</div>
                         )}
@@ -264,6 +269,13 @@ export function ProspectsTable({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
+                          <Link
+                            href={`/prospects/${p.id}`}
+                            className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                            title="Voir la fiche"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
                           <button
                             type="button"
                             onClick={() => openEdit(p)}
@@ -303,9 +315,12 @@ export function ProspectsTable({
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <Link
+                        href={`/prospects/${p.id}`}
+                        className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                      >
                         {p.first_name} {p.last_name}
-                      </p>
+                      </Link>
                       {p.company && (
                         <p className="text-sm text-gray-500">{p.company}</p>
                       )}

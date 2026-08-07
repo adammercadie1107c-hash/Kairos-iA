@@ -176,7 +176,7 @@ export default async function ConversationPage({
           <div className="flex items-center gap-1.5">
             {linkedProspect && (
               <Link
-                href={`/prospects?highlight=${linkedProspect.id}`}
+                href={`/prospects/${linkedProspect.id}`}
                 className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
               >
                 Prospect CRM

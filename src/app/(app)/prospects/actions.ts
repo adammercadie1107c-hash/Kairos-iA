@@ -187,3 +187,65 @@ export async function deleteProspect(id: string): Promise<ActionResult> {
   revalidatePath("/relances");
   return { success: true };
 }
+
+export async function markProspectStatus(
+  id: string,
+  status: "gagne" | "perdu",
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      status,
+      next_followup_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/prospects");
+  revalidatePath(`/prospects/${id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/relances");
+  return { success: true };
+}
+
+export async function scheduleManualFollowup(
+  id: string,
+  daysFromNow: number = 1,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const followupDate = new Date();
+  followupDate.setDate(followupDate.getDate() + daysFromNow);
+  const dateStr = followupDate.toISOString().split("T")[0];
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      next_followup_at: dateStr,
+      status: "a_relancer",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/prospects");
+  revalidatePath(`/prospects/${id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/relances");
+  return { success: true };
+}
