@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { verifySignature } from "@/lib/instagram/verify";
 import { sendInstagramMessage } from "@/lib/instagram/send";
 import { runAgent } from "@/lib/agent/engine";
+import { mergeExtractedInfo } from "@/lib/agent/merge-info";
 import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
 import type { AgentConfig, Message } from "@/lib/supabase/types";
@@ -273,10 +274,14 @@ async function handleInboundMessage(
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
-  // Run agent
+  // Run agent with qualification context
   const result = await runAgent(
     (history ?? []) as Message[],
     config as AgentConfig,
+    {
+      extractedInfo: contact.extracted_info ?? {},
+      conversationStatus: conversation.status,
+    },
   );
 
   const { decision } = result;
@@ -300,13 +305,14 @@ async function handleInboundMessage(
     credentials.page_access_token,
   );
 
-  // Update contact extracted info
+  // Update contact extracted info (smart merge — never overwrite with empty)
   if (decision.extracted_info && Object.keys(decision.extracted_info).length > 0) {
-    const merged = { ...contact.extracted_info, ...decision.extracted_info };
+    const merged = mergeExtractedInfo(contact.extracted_info ?? {}, decision.extracted_info);
     await supabase
       .from("contacts")
       .update({ extracted_info: merged })
       .eq("id", contact.id);
+    contact.extracted_info = merged;
   }
 
   // Update conversation status

@@ -199,10 +199,8 @@ export function ProspectsTable({
                   <Th onClick={() => toggleSort("name")}>
                     Nom {sortIcon("name")}
                   </Th>
-                  <Th onClick={() => toggleSort("company")}>
-                    Entreprise {sortIcon("company")}
-                  </Th>
                   <th className="px-4 py-3 font-medium text-gray-600">Contact</th>
+                  <th className="px-4 py-3 font-medium text-gray-600">Qualification</th>
                   <Th onClick={() => toggleSort("status")}>
                     Statut {sortIcon("status")}
                   </Th>
@@ -224,20 +222,28 @@ export function ProspectsTable({
                         <div className="font-medium text-gray-900">
                           {p.first_name} {p.last_name}
                         </div>
-                        {p.next_action && (
-                          <div className="text-xs text-gray-400 truncate max-w-[200px]">
-                            {p.next_action}
-                          </div>
+                        {p.company && (
+                          <div className="text-xs text-gray-400">{p.company}</div>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {p.company || "—"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-gray-600">{p.email || "—"}</div>
                         {p.phone && (
                           <div className="text-xs text-gray-400">{p.phone}</div>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.next_action && (
+                          <div className="text-xs text-blue-600 truncate max-w-[250px]">
+                            {p.next_action}
+                          </div>
+                        )}
+                        {p.notes && (
+                          <div className="text-xs text-gray-400 truncate max-w-[250px] mt-0.5">
+                            {p.notes}
+                          </div>
+                        )}
+                        {!p.next_action && !p.notes && "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span

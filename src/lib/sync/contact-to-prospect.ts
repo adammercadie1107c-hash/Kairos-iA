@@ -23,6 +23,13 @@ const INFO_KEY_MAP: Record<string, string> = {
   "niveau d'interet": "interet",
   "offre recherchee": "offre recherchee",
   offre: "offre recherchee",
+  blocage: "blocage",
+  blocages: "blocage",
+  timing: "timing",
+  delai: "timing",
+  disponibilite: "timing",
+  experience: "experience",
+  "experience passee": "experience",
 };
 
 function normalizeKey(key: string): string {
@@ -59,6 +66,21 @@ export function buildNotes(info: Record<string, string>): string {
   }
 
   return lines.join("\n");
+}
+
+export function buildQualificationSummary(info: Record<string, string>): string {
+  const summaryKeys = ["objectif", "blocage", "motivation", "timing", "budget", "experience"];
+  const parts: string[] = [];
+
+  for (const [key, val] of Object.entries(info)) {
+    const normalized = normalizeKey(key);
+    if (summaryKeys.includes(normalized) && val.trim()) {
+      parts.push(val.trim());
+    }
+  }
+
+  if (parts.length === 0) return "";
+  return parts.join(" | ");
 }
 
 export function splitName(displayName: string): { first: string; last: string } {
@@ -109,11 +131,15 @@ export async function syncQualifiedContactToProspect(
   const email = extractEmail(info);
   const phone = extractPhone(info);
   const notes = buildNotes(info);
+  const summary = buildQualificationSummary(info);
+  const nextAction = summary
+    ? `Qualifié IA : ${summary}`
+    : "Contacter suite a la qualification IA";
 
   // 1. Look for existing prospect by contact_id
   const { data: byContact } = await supabase
     .from("prospects")
-    .select("id, first_name, last_name, email, phone, notes, contact_id")
+    .select("id, first_name, last_name, email, phone, notes, contact_id, next_action")
     .eq("user_id", userId)
     .eq("contact_id", contact.id)
     .maybeSingle();
@@ -126,7 +152,8 @@ export async function syncQualifiedContactToProspect(
     if (!byContact.last_name && last) updates.last_name = last;
     if (!byContact.email && email) updates.email = email;
     if (!byContact.phone && phone) updates.phone = phone;
-    if (notes && !byContact.notes) updates.notes = notes;
+    if (notes) updates.notes = notes;
+    if (nextAction) updates.next_action = nextAction;
 
     if (Object.keys(updates).length > 1) {
       await supabase
@@ -157,7 +184,8 @@ export async function syncQualifiedContactToProspect(
       if (!byEmail.first_name && first) updates.first_name = first;
       if (!byEmail.last_name && last) updates.last_name = last;
       if (!byEmail.phone && phone) updates.phone = phone;
-      if (notes && !byEmail.notes) updates.notes = notes;
+      if (notes) updates.notes = notes;
+      if (nextAction) updates.next_action = nextAction;
 
       await supabase
         .from("prospects")
@@ -185,7 +213,7 @@ export async function syncQualifiedContactToProspect(
       phone,
       status: "contacte",
       notes,
-      next_action: "Contacter suite a la qualification IA",
+      next_action: nextAction,
       next_followup_at: tomorrow.toISOString().split("T")[0],
     })
     .select("id")

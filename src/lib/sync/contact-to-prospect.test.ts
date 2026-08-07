@@ -5,6 +5,7 @@ import {
   extractEmail,
   extractPhone,
   buildNotes,
+  buildQualificationSummary,
   syncQualifiedContactToProspect,
 } from "./contact-to-prospect";
 
@@ -79,6 +80,23 @@ describe("buildNotes", () => {
   });
   it("normalizes known keys", () => {
     assert.equal(buildNotes({ constraints: "pas de gluten" }), "Contraintes : pas de gluten");
+  });
+});
+
+describe("buildQualificationSummary", () => {
+  it("builds summary from key qualification fields", () => {
+    const info = { objectif: "Perdre 5kg", budget: "300€", motivation: "Mariage en juin" };
+    const summary = buildQualificationSummary(info);
+    assert.ok(summary.includes("Perdre 5kg"));
+    assert.ok(summary.includes("300€"));
+    assert.ok(summary.includes("Mariage en juin"));
+  });
+  it("returns empty for no qualification fields", () => {
+    assert.equal(buildQualificationSummary({ email: "a@b.com" }), "");
+  });
+  it("normalizes key names", () => {
+    const summary = buildQualificationSummary({ goal: "prise de masse" });
+    assert.ok(summary.includes("prise de masse"));
   });
 });
 

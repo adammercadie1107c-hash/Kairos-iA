@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runAgent } from "@/lib/agent/engine";
+import { mergeExtractedInfo } from "@/lib/agent/merge-info";
 import { demoAdapter } from "@/lib/channels/demo";
 import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
 import type { AgentConfig, Message } from "@/lib/supabase/types";
@@ -230,10 +231,14 @@ export async function POST(request: NextRequest) {
       .eq("conversation_id", currentConversationId)
       .order("created_at", { ascending: true });
 
-    // Run agent
+    // Run agent with qualification context
     const result = await runAgent(
       (history ?? []) as Message[],
       config as AgentConfig,
+      {
+        extractedInfo: contact.extracted_info ?? {},
+        conversationStatus: conversation.status,
+      },
     );
 
     const { decision } = result;
@@ -252,13 +257,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update contact extracted info
+    // Update contact extracted info (smart merge — never overwrite with empty)
     if (decision.extracted_info && Object.keys(decision.extracted_info).length > 0) {
-      const merged = { ...contact.extracted_info, ...decision.extracted_info };
+      const merged = mergeExtractedInfo(contact.extracted_info ?? {}, decision.extracted_info);
       await supabase
         .from("contacts")
         .update({ extracted_info: merged })
         .eq("id", contact.id);
+      contact.extracted_info = merged;
     }
 
     // Update conversation status

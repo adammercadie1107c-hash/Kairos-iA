@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { AgentDecisionSchema, type AgentDecision } from "./schema";
-import { buildSystemPrompt } from "./prompt";
+import { buildSystemPrompt, type QualificationContext } from "./prompt";
 import type { AgentConfig, Message } from "@/lib/supabase/types";
 
 const anthropic = new Anthropic();
@@ -19,8 +19,9 @@ export interface AgentRunResult {
 export async function runAgent(
   messages: Message[],
   config: AgentConfig,
+  context?: QualificationContext,
 ): Promise<AgentRunResult> {
-  const systemPrompt = buildSystemPrompt(config);
+  const systemPrompt = buildSystemPrompt(config, context);
 
   const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
 

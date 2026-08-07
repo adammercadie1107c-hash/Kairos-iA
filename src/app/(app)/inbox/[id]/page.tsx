@@ -82,6 +82,32 @@ export default async function ConversationPage({
         .maybeSingle()
     : { data: null };
 
+  const { data: agentConfig } = await supabase
+    .from("agent_configs")
+    .select("required_qualification_fields")
+    .eq("user_id", user.id)
+    .single();
+
+  const requiredFields: string[] = agentConfig?.required_qualification_fields ?? [];
+  const extractedInfo: Record<string, string> = contact?.extracted_info ?? {};
+
+  const filledFields: string[] = [];
+  const missingFields: string[] = [];
+  for (const field of requiredFields) {
+    const key = field.toLowerCase().trim();
+    const match = Object.entries(extractedInfo).find(
+      ([k]) => k.toLowerCase().trim() === key,
+    );
+    if (match && match[1]?.trim()) {
+      filledFields.push(field);
+    } else {
+      missingFields.push(field);
+    }
+  }
+  const qualificationProgress = requiredFields.length > 0
+    ? Math.round((filledFields.length / requiredFields.length) * 100)
+    : null;
+
   const status = statusLabels[conversation.status] ?? {
     label: conversation.status,
     className: "bg-gray-100 text-gray-600",
@@ -274,6 +300,38 @@ export default async function ConversationPage({
           <InfoSection label="Créée le">
             {new Date(conversation.created_at).toLocaleDateString("fr-FR")}
           </InfoSection>
+
+          {qualificationProgress !== null && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">
+                Qualification ({filledFields.length}/{requiredFields.length})
+              </p>
+              <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    qualificationProgress === 100 ? "bg-green-500" : "bg-blue-500",
+                  )}
+                  style={{ width: `${qualificationProgress}%` }}
+                />
+              </div>
+              {missingFields.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-[11px] text-gray-400 mb-1">Manquants :</p>
+                  <div className="flex flex-wrap gap-1">
+                    {missingFields.map((f) => (
+                      <span
+                        key={f}
+                        className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-600"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {contact?.extracted_info && Object.keys(contact.extracted_info).length > 0 && (
             <div>

@@ -1,6 +1,14 @@
 import type { AgentConfig } from "@/lib/supabase/types";
 
-export function buildSystemPrompt(config: AgentConfig): string {
+export interface QualificationContext {
+  extractedInfo: Record<string, string>;
+  conversationStatus: string;
+}
+
+export function buildSystemPrompt(
+  config: AgentConfig,
+  context?: QualificationContext,
+): string {
   const faqBlock =
     config.faq.length > 0
       ? config.faq.map((f) => `Q: ${f.q}\nR: ${f.a}`).join("\n\n")
@@ -13,10 +21,55 @@ export function buildSystemPrompt(config: AgentConfig): string {
           .join("\n")
       : "Aucune question spécifique. Qualifie selon ton jugement.";
 
+  const requiredFields = config.required_qualification_fields;
+  const info = context?.extractedInfo ?? {};
+
   const requiredFieldsBlock =
-    config.required_qualification_fields.length > 0
-      ? `Tu DOIS collecter TOUTES ces informations avant de considérer le prospect comme qualifié :\n${config.required_qualification_fields.map((f) => `- ${f}`).join("\n")}\n\nTant que tous ces champs ne sont pas collectés, le prospect n'est PAS qualifié. Continue à poser des questions naturellement pour obtenir les informations manquantes.`
+    requiredFields.length > 0
+      ? `Tu DOIS collecter TOUTES ces informations avant de considérer le prospect comme qualifié :\n${requiredFields.map((f) => `- ${f}`).join("\n")}\n\nTant que tous ces champs ne sont pas collectés, le prospect n'est PAS qualifié. Continue à poser des questions naturellement pour obtenir les informations manquantes.`
       : "Aucun champ obligatoire. Qualifie selon ton jugement.";
+
+  let progressBlock = "";
+  if (requiredFields.length > 0) {
+    const filled: string[] = [];
+    const missing: string[] = [];
+    for (const field of requiredFields) {
+      const key = field.toLowerCase().trim();
+      const match = Object.entries(info).find(
+        ([k]) => k.toLowerCase().trim() === key,
+      );
+      if (match && match[1]?.trim()) {
+        filled.push(`- ${field} : "${match[1]}"`);
+      } else {
+        missing.push(`- ${field}`);
+      }
+    }
+    progressBlock = `\n## ÉTAT ACTUEL DE LA QUALIFICATION
+Champs déjà collectés (${filled.length}/${requiredFields.length}) :
+${filled.length > 0 ? filled.join("\n") : "(aucun)"}
+
+Champs encore manquants :
+${missing.length > 0 ? missing.join("\n") : "(tous collectés)"}
+
+RÈGLES :
+- Ne repose PAS une question dont la réponse est déjà dans les champs collectés ci-dessus.
+- Pose ta prochaine question sur UN des champs manquants.
+- Accepte les réponses implicites : si le prospect dit "je veux perdre 10kg" c'est un objectif, pas besoin qu'il dise explicitement "mon objectif est...".
+- Ne passe PAS à qualified/booking_sent tant qu'il reste des champs manquants, SAUF si le prospect demande explicitement à réserver.
+- Quand tu extrais une information, utilise EXACTEMENT le nom du champ requis comme clé dans extracted_info.`;
+  }
+
+  let existingInfoBlock = "";
+  if (Object.keys(info).length > 0) {
+    existingInfoBlock = `\n## INFORMATIONS DÉJÀ COLLECTÉES
+${Object.entries(info)
+  .map(([k, v]) => `- ${k} : "${v}"`)
+  .join("\n")}
+
+Ne renvoie PAS ces valeurs dans extracted_info sauf si le prospect donne une information plus précise ou corrigée. Ne remplace jamais une valeur existante par une valeur vide ou moins précise.`;
+  }
+
+  const bookingAlreadySent = context?.conversationStatus === "booking_sent";
 
   return `Tu es l'assistant IA de "${config.business_name}". Tu réponds aux prospects qui contactent l'entreprise.
 
@@ -41,11 +94,13 @@ ${questionsBlock}
 
 ## CHAMPS REQUIS POUR QUALIFIER
 ${requiredFieldsBlock}
+${progressBlock}
+${existingInfoBlock}
 
 ## LIEN DE RÉSERVATION
 ${config.booking_link ? `Quand le prospect est qualifié, envoie ce lien UNE SEULE FOIS : ${config.booking_link}` : "Aucun lien configuré. Propose au prospect de prendre contact directement."}
 Message à utiliser : ${config.booking_message}
-IMPORTANT : N'envoie le lien qu'UNE SEULE FOIS dans toute la conversation. Si tu l'as déjà envoyé, ne le renvoie pas. Si le prospect pose d'autres questions après avoir reçu le lien, réponds normalement sans re-envoyer le lien.
+${bookingAlreadySent ? "Le lien de réservation a DÉJÀ ÉTÉ ENVOYÉ dans cette conversation. Ne le renvoie PAS." : "N'envoie le lien qu'UNE SEULE FOIS dans toute la conversation."}
 
 ## RÈGLES STRICTES
 1. Ne réponds JAMAIS à des questions sans rapport avec l'activité. Reason_code: "off_topic".
@@ -64,7 +119,7 @@ Tu DOIS répondre UNIQUEMENT en JSON valide, sans aucun texte avant ou après. V
   "message": "Le message à envoyer au prospect",
   "reason_code": "greeting" | "faq_answer" | "qualification_progress" | "all_fields_collected" | "objection_handled" | "booking_ready" | "low_confidence" | "human_requested" | "off_topic" | "sensitive_topic" | "followup_needed" | "not_a_fit",
   "handoff_reason": null ou "raison du transfert à un humain",
-  "extracted_info": {"champ": "valeur extraite de la conversation"},
+  "extracted_info": {"champ": "valeur extraite de CE message uniquement"},
   "new_status": "new" | "qualifying" | "qualified" | "booking_sent" | "handoff" | "disqualified" | "closed",
   "confidence": 0.0 à 1.0
 }
@@ -81,5 +136,9 @@ Tu DOIS répondre UNIQUEMENT en JSON valide, sans aucun texte avant ou après. V
 - Prospect silencieux depuis un moment → action: "schedule_followup", reason_code: "followup_needed"
 
 ## EXTRACTION D'INFORMATIONS
-À chaque message du prospect, extrais les informations pertinentes et ajoute-les dans extracted_info. Utilise les noms de champs définis dans les champs requis quand c'est possible.`;
+À chaque message du prospect, extrais les informations pertinentes et ajoute-les dans extracted_info.
+- Utilise EXACTEMENT les noms des champs requis comme clés.
+- N'inclus que les NOUVELLES informations de CE message.
+- Accepte les réponses implicites et les reformulations.
+- Ne mets JAMAIS une clé avec une valeur vide ou null.`;
 }
