@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canTransitionStatus } from "@/lib/conversations/status-machine";
+import type { ConversationStatus } from "@/lib/supabase/types";
+
+const COMMERCIAL_STATUSES: ConversationStatus[] = ["qualified", "booking_sent"];
 
 export async function toggleAi(conversationId: string, enable: boolean) {
   const supabase = await createClient();
@@ -51,7 +55,7 @@ export async function sendHumanMessage(
 
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, status, ai_enabled")
     .eq("id", conversationId)
     .eq("user_id", user.id)
     .single();
@@ -62,11 +66,22 @@ export async function sendHumanMessage(
     conversation_id: conversationId,
     role: "human",
     content: content.trim(),
+    metadata: { handoff_reason: "Réponse manuelle du coach" },
   });
+
+  const updates: Record<string, unknown> = {
+    last_message_at: new Date().toISOString(),
+    ai_enabled: false,
+  };
+
+  const currentStatus = conv.status as ConversationStatus;
+  if (!COMMERCIAL_STATUSES.includes(currentStatus)) {
+    updates.status = "handoff";
+  }
 
   await supabase
     .from("conversations")
-    .update({ last_message_at: new Date().toISOString() })
+    .update(updates)
     .eq("id", conversationId)
     .eq("user_id", user.id);
 
@@ -84,6 +99,22 @@ export async function updateConversationStatus(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Non authentifié" };
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("status")
+    .eq("id", conversationId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!conv) return { error: "Conversation introuvable" };
+
+  const current = conv.status as ConversationStatus;
+  const next = status as ConversationStatus;
+
+  if (!canTransitionStatus(current, next, true)) {
+    return { error: `Transition ${current} → ${next} non autorisée` };
+  }
 
   await supabase
     .from("conversations")

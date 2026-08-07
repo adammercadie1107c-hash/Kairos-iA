@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft, Bot, User, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { ConversationControls } from "./controls";
+import { ReactivateAiButton } from "./reactivate-ai-button";
 import { DeleteConversationButton } from "./delete-button";
 import type { Metadata } from "next";
 
@@ -81,6 +82,26 @@ export default async function ConversationPage({
         .eq("user_id", user.id)
         .maybeSingle()
     : { data: null };
+
+  // Get handoff reason from the most recent message that has one in metadata
+  let handoffReason: string | null = null;
+  if (conversation.status === "handoff" || !conversation.ai_enabled) {
+    const { data: recentMsgs } = await supabase
+      .from("messages")
+      .select("metadata")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (recentMsgs) {
+      for (const msg of recentMsgs) {
+        const meta = msg.metadata as Record<string, unknown> | null;
+        if (meta?.handoff_reason && typeof meta.handoff_reason === "string") {
+          handoffReason = meta.handoff_reason;
+          break;
+        }
+      }
+    }
+  }
 
   const { data: agentConfig } = await supabase
     .from("agent_configs")
@@ -164,6 +185,26 @@ export default async function ConversationPage({
             <DeleteConversationButton conversationId={id} />
           </div>
         </div>
+
+        {/* Handoff banner */}
+        {!conversation.ai_enabled && (
+          <div className="mx-4 mt-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-orange-800">
+                Reprise humaine recommandée
+                {handoffReason && (
+                  <span className="font-normal text-orange-600">
+                    {" "}— {handoffReason}
+                  </span>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-orange-500">
+                L&apos;IA est désactivée. Les messages entrants ne déclencheront pas de réponse automatique.
+              </p>
+            </div>
+            <ReactivateAiButton conversationId={id} />
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">

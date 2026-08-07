@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runAgent } from "@/lib/agent/engine";
 import { mergeExtractedInfo } from "@/lib/agent/merge-info";
+import { canTransitionStatus } from "@/lib/conversations/status-machine";
 import { demoAdapter } from "@/lib/channels/demo";
 import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
-import type { AgentConfig, Message } from "@/lib/supabase/types";
+import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -245,16 +246,21 @@ export async function POST(request: NextRequest) {
 
     const agentMessage = decision.message;
 
-    // Save agent response
+    // Save agent response (include handoff_reason in metadata when escalating)
+    const agentMsgMetadata: Record<string, unknown> = {
+      action: decision.action,
+      reason_code: decision.reason_code,
+      confidence: decision.confidence,
+    };
+    if (decision.handoff_reason) {
+      agentMsgMetadata.handoff_reason = decision.handoff_reason;
+    }
+
     await supabase.from("messages").insert({
       conversation_id: currentConversationId,
       role: "agent",
       content: agentMessage,
-      metadata: {
-        action: decision.action,
-        reason_code: decision.reason_code,
-        confidence: decision.confidence,
-      },
+      metadata: agentMsgMetadata,
     });
 
     // Update contact extracted info (smart merge — never overwrite with empty)
@@ -267,18 +273,24 @@ export async function POST(request: NextRequest) {
       contact.extracted_info = merged;
     }
 
-    // Update conversation status
+    // Update conversation status (with transition protection)
     const updates: Record<string, unknown> = {
       last_message_at: new Date().toISOString(),
     };
 
-    if (decision.new_status) {
-      updates.status = decision.new_status;
-    }
+    const currentStatus = conversation.status as ConversationStatus;
 
     if (decision.action === "escalate") {
       updates.ai_enabled = false;
       updates.status = "handoff";
+    } else if (decision.new_status && decision.new_status !== currentStatus) {
+      if (canTransitionStatus(currentStatus, decision.new_status as ConversationStatus, false)) {
+        updates.status = decision.new_status;
+      } else {
+        console.warn(
+          `[chat] blocked status regression: ${currentStatus} → ${decision.new_status}`,
+        );
+      }
     }
 
     if (decision.action === "schedule_followup") {

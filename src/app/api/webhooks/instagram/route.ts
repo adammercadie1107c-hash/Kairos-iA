@@ -4,9 +4,10 @@ import { verifySignature } from "@/lib/instagram/verify";
 import { sendInstagramMessage } from "@/lib/instagram/send";
 import { runAgent } from "@/lib/agent/engine";
 import { mergeExtractedInfo } from "@/lib/agent/merge-info";
+import { canTransitionStatus } from "@/lib/conversations/status-machine";
 import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
-import type { AgentConfig, Message } from "@/lib/supabase/types";
+import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
 
 /**
  * GET /api/webhooks/instagram
@@ -286,16 +287,21 @@ async function handleInboundMessage(
 
   const { decision } = result;
 
-  // Save agent response
+  // Save agent response (include handoff_reason in metadata when escalating)
+  const messageMetadata: Record<string, unknown> = {
+    action: decision.action,
+    reason_code: decision.reason_code,
+    confidence: decision.confidence,
+  };
+  if (decision.handoff_reason) {
+    messageMetadata.handoff_reason = decision.handoff_reason;
+  }
+
   await supabase.from("messages").insert({
     conversation_id: conversationId,
     role: "agent",
     content: decision.message,
-    metadata: {
-      action: decision.action,
-      reason_code: decision.reason_code,
-      confidence: decision.confidence,
-    },
+    metadata: messageMetadata,
   });
 
   // Send reply via Instagram API
@@ -315,18 +321,24 @@ async function handleInboundMessage(
     contact.extracted_info = merged;
   }
 
-  // Update conversation status
+  // Update conversation status (with transition protection)
   const updates: Record<string, unknown> = {
     last_message_at: new Date().toISOString(),
   };
 
-  if (decision.new_status) {
-    updates.status = decision.new_status;
-  }
+  const currentStatus = conversation.status as ConversationStatus;
 
   if (decision.action === "escalate") {
     updates.ai_enabled = false;
     updates.status = "handoff";
+  } else if (decision.new_status && decision.new_status !== currentStatus) {
+    if (canTransitionStatus(currentStatus, decision.new_status as ConversationStatus, false)) {
+      updates.status = decision.new_status;
+    } else {
+      console.warn(
+        `[webhook] blocked status regression: ${currentStatus} → ${decision.new_status}`,
+      );
+    }
   }
 
   if (decision.action === "schedule_followup") {
