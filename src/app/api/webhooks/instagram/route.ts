@@ -245,6 +245,12 @@ async function handleInboundMessage(
     .update({ next_followup_at: null })
     .eq("id", conversationId);
 
+  await supabase
+    .from("prospects")
+    .update({ next_followup_at: null, updated_at: new Date().toISOString() })
+    .eq("contact_id", contact.id)
+    .eq("user_id", userId);
+
   // Check AI enabled
   if (!conversation.ai_enabled) {
     await supabase.from("messages").insert({

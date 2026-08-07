@@ -179,6 +179,12 @@ export async function POST(request: NextRequest) {
       .update({ next_followup_at: null })
       .eq("id", currentConversationId!);
 
+    await supabase
+      .from("prospects")
+      .update({ next_followup_at: null, updated_at: new Date().toISOString() })
+      .eq("contact_id", contact.id)
+      .eq("user_id", user.id);
+
     // Check if AI is enabled
     if (!conversation.ai_enabled) {
       // Save inbound message only, don't run agent

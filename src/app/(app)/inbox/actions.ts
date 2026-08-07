@@ -69,9 +69,18 @@ export async function sendHumanMessage(
     metadata: { handoff_reason: "Réponse manuelle du coach" },
   });
 
+  // Cancel all pending followup events
+  await supabase
+    .from("scheduled_events")
+    .update({ cancelled: true })
+    .eq("conversation_id", conversationId)
+    .is("executed_at", null)
+    .eq("cancelled", false);
+
   const updates: Record<string, unknown> = {
     last_message_at: new Date().toISOString(),
     ai_enabled: false,
+    next_followup_at: null,
   };
 
   const currentStatus = conv.status as ConversationStatus;
@@ -84,6 +93,21 @@ export async function sendHumanMessage(
     .update(updates)
     .eq("id", conversationId)
     .eq("user_id", user.id);
+
+  // Clean prospect next_followup_at (keep last_followup_at untouched)
+  const { data: convData } = await supabase
+    .from("conversations")
+    .select("contact_id")
+    .eq("id", conversationId)
+    .single();
+
+  if (convData?.contact_id) {
+    await supabase
+      .from("prospects")
+      .update({ next_followup_at: null, updated_at: new Date().toISOString() })
+      .eq("contact_id", convData.contact_id)
+      .eq("user_id", user.id);
+  }
 
   revalidatePath(`/inbox/${conversationId}`);
   revalidatePath("/inbox");

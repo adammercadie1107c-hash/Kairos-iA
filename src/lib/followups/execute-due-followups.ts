@@ -32,11 +32,17 @@ export interface ExecuteFollowupsResult {
   errors: string[];
 }
 
+export interface FollowupContext {
+  extractedInfo: Record<string, string>;
+  conversationStatus: string;
+}
+
 export interface GenerateMessageFn {
   (
     history: Message[],
     config: AgentConfig,
     followupNumber: number,
+    context?: FollowupContext,
   ): Promise<{ message: string }>;
 }
 
@@ -194,7 +200,7 @@ async function processEvent(
 
     const { data: contact } = await supabase
       .from("contacts")
-      .select("id, display_name, external_id, user_id")
+      .select("id, display_name, external_id, user_id, extracted_info")
       .eq("id", conversation.contact_id)
       .single();
 
@@ -230,12 +236,18 @@ async function processEvent(
 
     const followupNumber = currentCount + 1;
 
+    const followupContext: FollowupContext = {
+      extractedInfo: (contact as Record<string, unknown>).extracted_info as Record<string, string> ?? {},
+      conversationStatus: conversation.status as string,
+    };
+
     let generated: { message: string };
     try {
       generated = await deps.generateMessage(
         (history ?? []) as Message[],
         config as AgentConfig,
         followupNumber,
+        followupContext,
       );
     } catch (genErr) {
       const msg =
@@ -275,12 +287,52 @@ async function processEvent(
       .update({ executed_at: nowIso, processing_at: null })
       .eq("id", event.id);
 
+    // Schedule next followup in the chain if conditions are met
+    let nextFollowupAt: string | null = null;
+
+    if (
+      followupNumber < (config as AgentConfig).max_followups &&
+      conversation.ai_enabled &&
+      ACTIONABLE_STATUSES.includes(conversation.status)
+    ) {
+      const { data: alreadyPending } = await supabase
+        .from("scheduled_events")
+        .select("id")
+        .eq("conversation_id", conversation.id)
+        .is("executed_at", null)
+        .eq("cancelled", false)
+        .limit(1)
+        .maybeSingle();
+
+      if (!alreadyPending) {
+        const { data: replyAfterExec } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("conversation_id", conversation.id)
+          .eq("role", "contact")
+          .gte("created_at", nowIso)
+          .limit(1)
+          .maybeSingle();
+
+        if (!replyAfterExec) {
+          const nextDate = new Date(Date.now() + 72 * 3_600_000);
+          nextFollowupAt = nextDate.toISOString();
+
+          await supabase.from("scheduled_events").insert({
+            conversation_id: conversation.id,
+            type: "followup",
+            scheduled_at: nextFollowupAt,
+          });
+        }
+      }
+    }
+
     await supabase
       .from("conversations")
       .update({
         followup_count: followupNumber,
         last_message_at: nowIso,
-        next_followup_at: null,
+        next_followup_at: nextFollowupAt,
       })
       .eq("id", conversation.id);
 
@@ -288,7 +340,9 @@ async function processEvent(
       .from("prospects")
       .update({
         last_followup_at: nowIso,
-        next_followup_at: null,
+        next_followup_at: nextFollowupAt
+          ? nextFollowupAt.split("T")[0]
+          : null,
         updated_at: nowIso,
       })
       .eq("contact_id", contact.id)
