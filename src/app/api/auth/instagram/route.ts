@@ -31,11 +31,13 @@ export async function GET(_request: NextRequest) {
   const nonce = crypto.randomUUID();
 
   // Facebook Login for Business — authorization dialog
+  // pages_manage_metadata is needed for subscribePageToApp (POST /{page}/subscribed_apps)
+  // but currently rejected as an OAuth scope by the configured Meta app/use case —
+  // must be enabled/configured in Meta before being requested.
   const scopes = [
     "pages_show_list",
     "instagram_basic",
     "instagram_manage_messages",
-    "pages_manage_metadata",
   ].join(",");
 
   const authUrl = new URL("https://www.facebook.com/dialog/oauth");

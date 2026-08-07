@@ -6,12 +6,12 @@ const EXPECTED_SCOPES = [
   "pages_show_list",
   "instagram_basic",
   "instagram_manage_messages",
-  "pages_manage_metadata",
 ];
 
 const REMOVED_SCOPES = [
   "pages_read_engagement",
   "business_management",
+  "pages_manage_metadata",
 ];
 
 describe("OAuth scopes", () => {
@@ -32,7 +32,7 @@ describe("OAuth scopes", () => {
     }
   });
 
-  it("scopes list has exactly 4 entries", () => {
+  it("scopes list has exactly 3 entries", () => {
     const match = routeSource.match(/const scopes = \[([\s\S]*?)\]\.join/);
     expect(match).not.toBeNull();
     const entries = match![1].match(/"/g);
