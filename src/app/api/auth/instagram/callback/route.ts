@@ -62,6 +62,8 @@ export async function GET(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
+  let webhookSubscribed = true;
+
   try {
     const { access_token: shortToken } = await exchangeCodeForToken(
       code,
@@ -100,13 +102,17 @@ export async function GET(request: NextRequest) {
       return redirectWithError("no_instagram_account");
     }
 
-    const subscribed = await subscribePageToApp(pageId, pageAccessToken);
-    if (!subscribed) {
-      console.error(`[oauth] subscribePageToApp failed for page ${pageId}`);
-      return redirectWithError("webhook_subscription_failed");
+    try {
+      const subResult = await subscribePageToApp(pageId, pageAccessToken);
+      if (!subResult) {
+        console.warn("[instagram oauth] webhook subscription failed — continuing with channel connection");
+        webhookSubscribed = false;
+      }
+    } catch (subErr) {
+      console.warn("[instagram oauth] webhook subscription error — continuing with channel connection:", subErr);
+      webhookSubscribed = false;
     }
 
-    // Fetch the Instagram username for display
     const username = await getInstagramUsername(instagramAccountId, pageAccessToken);
 
     const serviceClient = await createServiceClient();
@@ -140,7 +146,9 @@ export async function GET(request: NextRequest) {
 
   const successUrl = request.nextUrl.clone();
   successUrl.pathname = "/channels";
-  successUrl.search = "?connected=true";
+  successUrl.search = webhookSubscribed
+    ? "?connected=true"
+    : "?connected=true&webhook_warning=true";
   const response = NextResponse.redirect(successUrl);
   response.cookies.set("ig_oauth_state", "", { maxAge: 0, path: "/" });
 

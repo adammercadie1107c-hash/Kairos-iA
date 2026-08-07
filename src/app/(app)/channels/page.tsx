@@ -51,14 +51,16 @@ const oauthErrorMessages: Record<string, string> = {
     "Aucune Page Facebook trouvée. Votre compte doit gérer au moins une Page.",
   no_instagram_account:
     "Aucun compte Instagram Professional trouvé lié à vos Pages Facebook. Connectez votre compte Instagram Business ou Creator à une Page Facebook dans les paramètres Instagram.",
+  webhook_subscription_failed:
+    "L'abonnement webhook a échoué. Le compte est connecté mais les messages pourraient ne pas être reçus automatiquement.",
 };
 
 export default async function ChannelsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; webhook_warning?: string }>;
 }) {
-  const { connected, error } = await searchParams;
+  const { connected, error, webhook_warning } = await searchParams;
 
   const supabase = await createClient();
   const {
@@ -82,9 +84,17 @@ export default async function ChannelsPage({
         Gérez vos canaux de communication.
       </p>
 
-      {connected && (
+      {connected && !webhook_warning && (
         <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
           Compte Instagram connecté avec succès.
+        </div>
+      )}
+
+      {connected && webhook_warning && (
+        <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+          Compte connecté, mais abonnement webhook à vérifier. Les messages
+          Instagram pourraient ne pas être reçus automatiquement tant que
+          l&apos;abonnement webhook n&apos;est pas actif.
         </div>
       )}
 
