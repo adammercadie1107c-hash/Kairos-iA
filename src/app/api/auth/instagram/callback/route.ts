@@ -100,8 +100,11 @@ export async function GET(request: NextRequest) {
       return redirectWithError("no_instagram_account");
     }
 
-    // Subscribe the Page to receive webhook events
-    await subscribePageToApp(pageId, pageAccessToken);
+    const subscribed = await subscribePageToApp(pageId, pageAccessToken);
+    if (!subscribed) {
+      console.error(`[oauth] subscribePageToApp failed for page ${pageId}`);
+      return redirectWithError("webhook_subscription_failed");
+    }
 
     // Fetch the Instagram username for display
     const username = await getInstagramUsername(instagramAccountId, pageAccessToken);

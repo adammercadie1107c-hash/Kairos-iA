@@ -33,10 +33,9 @@ export async function GET(_request: NextRequest) {
   // Facebook Login for Business — authorization dialog
   const scopes = [
     "pages_show_list",
-    "pages_read_engagement",
     "instagram_basic",
     "instagram_manage_messages",
-    "business_management",
+    "pages_manage_metadata",
   ].join(",");
 
   const authUrl = new URL("https://www.facebook.com/dialog/oauth");

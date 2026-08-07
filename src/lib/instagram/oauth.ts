@@ -1,4 +1,4 @@
-const GRAPH_BASE = "https://graph.facebook.com/v20.0";
+const GRAPH_BASE = "https://graph.facebook.com/v21.0";
 
 export interface UserTokenResponse {
   access_token: string;

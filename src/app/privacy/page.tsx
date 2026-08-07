@@ -80,10 +80,9 @@ export default function PrivacyPage() {
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li><strong>pages_show_list</strong> — lister les Pages Facebook gérées.</li>
-            <li><strong>pages_read_engagement</strong> — lire les informations de la Page.</li>
             <li><strong>instagram_basic</strong> — accéder au profil Instagram lié.</li>
             <li><strong>instagram_manage_messages</strong> — lire et envoyer des messages Instagram.</li>
-            <li><strong>business_management</strong> — accéder au Business Manager associé.</li>
+            <li><strong>pages_manage_metadata</strong> — abonner la Page aux notifications de messages.</li>
           </ul>
           <p className="mt-2">
             L&apos;utilisateur peut révoquer cet accès à tout moment depuis la page Canaux de
