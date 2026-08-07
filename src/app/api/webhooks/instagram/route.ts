@@ -42,6 +42,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
 
+  console.log("[webhook] app id loaded:", process.env.META_APP_ID);
+
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
