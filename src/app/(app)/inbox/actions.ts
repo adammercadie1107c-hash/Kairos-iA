@@ -160,28 +160,59 @@ export async function deleteConversation(conversationId: string) {
 
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, contact_id")
     .eq("id", conversationId)
     .eq("user_id", user.id)
     .single();
 
   if (!conv) return { error: "Conversation introuvable" };
 
-  await supabase
-    .from("messages")
-    .delete()
-    .eq("conversation_id", conversationId);
-
+  // FK-safe order: child tables first
   await supabase
     .from("agent_logs")
     .delete()
     .eq("conversation_id", conversationId);
 
   await supabase
+    .from("scheduled_events")
+    .delete()
+    .eq("conversation_id", conversationId);
+
+  await supabase
+    .from("messages")
+    .delete()
+    .eq("conversation_id", conversationId);
+
+  if (conv.contact_id) {
+    await supabase
+      .from("prospects")
+      .delete()
+      .eq("contact_id", conv.contact_id)
+      .eq("user_id", user.id);
+  }
+
+  await supabase
     .from("conversations")
     .delete()
     .eq("id", conversationId)
     .eq("user_id", user.id);
+
+  if (conv.contact_id) {
+    const { data: otherConvs } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("contact_id", conv.contact_id)
+      .eq("user_id", user.id)
+      .limit(1);
+
+    if (!otherConvs || otherConvs.length === 0) {
+      await supabase
+        .from("contacts")
+        .delete()
+        .eq("id", conv.contact_id)
+        .eq("user_id", user.id);
+    }
+  }
 
   revalidatePath("/inbox");
   revalidatePath("/dashboard");
