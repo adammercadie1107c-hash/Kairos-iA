@@ -123,16 +123,14 @@ async function handleInboundMessage(
     return "channel_query_error";
   }
 
-  const supabaseRef = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
-  const igIds = (channels ?? []).map((c) => (c.credentials as Record<string, unknown>)?.instagram_account_id);
-  console.log("[webhook] supabase ref:", supabaseRef);
+  const igIds = (channels ?? []).map((c) => (c.credentials as Record<string, unknown>)?.instagram_user_id);
   console.log("[webhook] active IG channels found:", channels?.length ?? 0);
-  console.log("[webhook] IG account IDs in DB:", igIds);
+  console.log("[webhook] IG user IDs in DB:", igIds);
   console.log("[webhook] igAccountId from payload:", igAccountId);
 
   const channel = channels?.find(
     (item) =>
-      String((item.credentials as Record<string, unknown>)?.instagram_account_id) === String(igAccountId),
+      String((item.credentials as Record<string, unknown>)?.instagram_user_id) === String(igAccountId),
   );
 
   console.log("[webhook] channel matched:", !!channel);
@@ -144,33 +142,6 @@ async function handleInboundMessage(
 
   const credentials = channel.credentials as unknown as InstagramCredentials;
   const userId = channel.user_id;
-
-  // Backfill missing metadata on first message
-  if (!credentials.instagram_username || !credentials.page_id) {
-    try {
-      const { getInstagramUsername } = await import("@/lib/instagram/oauth");
-      if (!credentials.instagram_username && credentials.page_access_token) {
-        const username = await getInstagramUsername(igAccountId, credentials.page_access_token);
-        if (username) credentials.instagram_username = username;
-      }
-      if (!credentials.page_id && credentials.page_access_token) {
-        const res = await fetch(
-          `https://graph.facebook.com/v20.0/me?fields=id&access_token=${encodeURIComponent(credentials.page_access_token)}`,
-        );
-        if (res.ok) {
-          const json = (await res.json()) as { id: string };
-          credentials.page_id = json.id;
-        }
-      }
-      await supabase
-        .from("channels")
-        .update({ credentials: { ...credentials } })
-        .eq("id", channel.id);
-    } catch (err) {
-      console.error("[webhook] metadata backfill error:", err);
-    }
-  }
-
 
   // Load agent config
   const { data: config } = await supabase
@@ -315,9 +286,10 @@ async function handleInboundMessage(
 
   // Send reply via Instagram API
   await sendInstagramMessage(
+    credentials.instagram_user_id,
     senderId,
     decision.message,
-    credentials.page_access_token,
+    credentials.access_token,
   );
 
   // Update contact extracted info (smart merge — never overwrite with empty)

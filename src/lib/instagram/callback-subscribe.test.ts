@@ -2,53 +2,60 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-describe("callback subscribePageToApp handling", () => {
+describe("callback uses Instagram Login flow (no Facebook Login)", () => {
   const callbackSource = readFileSync(
     join(__dirname, "../../app/api/auth/instagram/callback/route.ts"),
     "utf-8",
   );
 
-  it("calls subscribePageToApp", () => {
-    expect(callbackSource).toContain("subscribePageToApp(pageId,");
+  it("imports exchangeCodeForToken from instagram/oauth", () => {
+    expect(callbackSource).toContain("exchangeCodeForToken");
   });
 
-  it("does not block channel creation when subscription fails (returns false)", () => {
-    expect(callbackSource).toContain("webhookSubscribed = false");
-    expect(callbackSource).not.toContain('return redirectWithError("webhook_subscription_failed")');
+  it("imports exchangeForLongLivedToken from instagram/oauth", () => {
+    expect(callbackSource).toContain("exchangeForLongLivedToken");
   });
 
-  it("catches exceptions from subscribePageToApp without blocking", () => {
-    expect(callbackSource).toContain("catch (subErr)");
-    expect(callbackSource).toContain("webhook subscription error — continuing");
+  it("imports getInstagramUserInfo from instagram/oauth", () => {
+    expect(callbackSource).toContain("getInstagramUserInfo");
   });
 
-  it("channel upsert runs regardless of subscription outcome", () => {
-    const subCallIndex = callbackSource.indexOf("await subscribePageToApp(");
-    const upsertIndex = callbackSource.indexOf(".upsert(");
-    expect(subCallIndex).toBeGreaterThan(-1);
-    expect(upsertIndex).toBeGreaterThan(subCallIndex);
-    const between = callbackSource.slice(subCallIndex, upsertIndex);
-    expect(between).not.toContain("return redirectWithError");
+  it("does not import Facebook Login functions", () => {
+    expect(callbackSource).not.toContain("getUserPages");
+    expect(callbackSource).not.toContain("getInstagramAccountFromPage");
+    expect(callbackSource).not.toContain("subscribePageToApp");
+    expect(callbackSource).not.toContain("getInstagramUsername");
   });
 
-  it("sets webhook_warning query param when subscription fails", () => {
-    expect(callbackSource).toContain("webhook_warning=true");
+  it("stores instagram_user_id in credentials (not instagram_account_id or page_id)", () => {
+    expect(callbackSource).toContain("instagram_user_id");
+    expect(callbackSource).not.toContain("instagram_account_id");
+    expect(callbackSource).not.toContain("page_id");
+    expect(callbackSource).not.toContain("page_access_token");
   });
 
-  it("redirects with connected=true in both success and failure cases", () => {
+  it("stores access_token directly (not page_access_token)", () => {
+    expect(callbackSource).toContain("access_token: longToken");
+  });
+
+  it("upserts channel with credentials", () => {
+    expect(callbackSource).toContain(".upsert(");
+    expect(callbackSource).toContain("credentials");
+  });
+
+  it("redirects with connected=true on success", () => {
     expect(callbackSource).toContain("connected=true");
-    const matches = callbackSource.match(/connected=true/g);
-    expect(matches!.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("logs failure without exposing tokens", () => {
-    const logLines = callbackSource
-      .split("\n")
-      .filter((l) => l.includes("webhook subscription"));
-    expect(logLines.length).toBeGreaterThanOrEqual(2);
-    for (const line of logLines) {
-      expect(line).not.toMatch(/access.?token/i);
-      expect(line).not.toMatch(/secret/i);
-    }
+  it("clears ig_oauth_state cookie after flow", () => {
+    expect(callbackSource).toContain("ig_oauth_state");
+    expect(callbackSource).toContain("maxAge: 0");
+  });
+
+  it("does not reference Facebook Pages or Page tokens", () => {
+    expect(callbackSource).not.toContain("getUserPages");
+    expect(callbackSource).not.toContain("page_access_token");
+    expect(callbackSource).not.toContain("no_pages");
+    expect(callbackSource).not.toContain("no_instagram_account");
   });
 });

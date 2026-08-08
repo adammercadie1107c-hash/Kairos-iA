@@ -1,14 +1,14 @@
 import type { IGSendResponse } from "./types";
 
-const FB_API_VERSION = "v21.0";
-const FB_BASE_URL = `https://graph.facebook.com/${FB_API_VERSION}`;
+const IG_GRAPH_BASE = "https://graph.instagram.com/v21.0";
 
 export async function sendInstagramMessage(
+  igUserId: string,
   recipientId: string,
   text: string,
   accessToken: string,
 ): Promise<IGSendResponse> {
-  const res = await fetch(`${FB_BASE_URL}/me/messages`, {
+  const res = await fetch(`${IG_GRAPH_BASE}/${igUserId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,

@@ -111,9 +111,10 @@ export class InstagramFollowupTransport implements FollowupTransport {
 
     try {
       await sendInstagramMessage(
+        credentials.instagram_user_id,
         contact.external_id,
         params.content,
-        credentials.page_access_token,
+        credentials.access_token,
       );
     } catch (err) {
       return {

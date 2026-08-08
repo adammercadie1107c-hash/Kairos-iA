@@ -77,9 +77,8 @@ async function purgeUserDataByFacebookId(
   const matchedChannel = (channels ?? []).find((ch) => {
     const creds = ch.credentials as Record<string, unknown> | null;
     if (!creds) return false;
-    const pageId = creds.page_id as string | undefined;
-    const igAccountId = creds.instagram_account_id as string | undefined;
-    return pageId === fbUserId || igAccountId === fbUserId;
+    const igUserId = creds.instagram_user_id as string | undefined;
+    return igUserId === fbUserId;
   });
 
   if (!matchedChannel) {

@@ -37,8 +37,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Données Instagram</strong> — lorsqu&apos;un utilisateur connecte son compte
-              Instagram professionnel via Meta, nous recevons un jeton d&apos;accès à la Page, l&apos;identifiant
-              du compte Instagram professionnel et le nom d&apos;utilisateur Instagram. Ces données sont
+              Instagram professionnel via Instagram Login, nous recevons un jeton d&apos;accès Instagram,
+              l&apos;identifiant du compte Instagram et le nom d&apos;utilisateur. Ces données sont
               stockées exclusivement côté serveur.
             </li>
             <li>
@@ -75,18 +75,16 @@ export default function PrivacyPage() {
 
         <Section title="3. Intégration Meta (Instagram)">
           <p>
-            Kairos iA utilise le système Facebook Login for Business pour connecter les comptes
+            Kairos iA utilise Instagram Login pour connecter les comptes
             Instagram professionnels. Nous demandons les permissions suivantes :
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li><strong>pages_show_list</strong> — lister les Pages Facebook gérées.</li>
-            <li><strong>instagram_basic</strong> — accéder au profil Instagram lié.</li>
-            <li><strong>instagram_manage_messages</strong> — lire et envoyer des messages Instagram.</li>
-            <li><strong>pages_manage_metadata</strong> — abonner la Page aux notifications de messages.</li>
+            <li><strong>instagram_business_basic</strong> — accéder au profil Instagram professionnel.</li>
+            <li><strong>instagram_business_manage_messages</strong> — lire et envoyer des messages Instagram.</li>
           </ul>
           <p className="mt-2">
             L&apos;utilisateur peut révoquer cet accès à tout moment depuis la page Canaux de
-            l&apos;application ou depuis les paramètres de son compte Facebook.
+            l&apos;application ou depuis les paramètres de son compte Instagram.
           </p>
         </Section>
 

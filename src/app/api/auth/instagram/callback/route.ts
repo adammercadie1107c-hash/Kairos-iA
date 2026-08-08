@@ -3,10 +3,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
-  getUserPages,
-  getInstagramAccountFromPage,
-  subscribePageToApp,
-  getInstagramUsername,
+  getInstagramUserInfo,
 } from "@/lib/instagram/oauth";
 import type { InstagramCredentials } from "@/lib/instagram/types";
 
@@ -26,7 +23,7 @@ export async function GET(request: NextRequest) {
   };
 
   if (metaError) {
-    console.error("Facebook OAuth error:", metaError, metaErrorDescription);
+    console.error("Instagram OAuth error:", metaError, metaErrorDescription);
     const key = metaError === "access_denied" ? "access_denied" : "oauth_failed";
     return redirectWithError(key);
   }
@@ -62,8 +59,6 @@ export async function GET(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
-  let webhookSubscribed = true;
-
   try {
     const { access_token: shortToken } = await exchangeCodeForToken(
       code,
@@ -72,55 +67,18 @@ export async function GET(request: NextRequest) {
       redirectUri,
     );
 
-    const { access_token: longUserToken } = await exchangeForLongLivedToken(
+    const { access_token: longToken } = await exchangeForLongLivedToken(
       shortToken,
-      appId,
       appSecret,
     );
 
-    const pages = await getUserPages(longUserToken);
-
-    if (pages.length === 0) {
-      return redirectWithError("no_pages");
-    }
-
-    let instagramAccountId: string | null = null;
-    let pageAccessToken: string | null = null;
-    let pageId: string | null = null;
-
-    for (const page of pages) {
-      const igId = await getInstagramAccountFromPage(page.id, page.access_token);
-      if (igId) {
-        instagramAccountId = igId;
-        pageAccessToken = page.access_token;
-        pageId = page.id;
-        break;
-      }
-    }
-
-    if (!instagramAccountId || !pageAccessToken || !pageId) {
-      return redirectWithError("no_instagram_account");
-    }
-
-    try {
-      const subResult = await subscribePageToApp(pageId, pageAccessToken);
-      if (!subResult) {
-        console.warn("[instagram oauth] webhook subscription failed — continuing with channel connection");
-        webhookSubscribed = false;
-      }
-    } catch (subErr) {
-      console.warn("[instagram oauth] webhook subscription error — continuing with channel connection:", subErr);
-      webhookSubscribed = false;
-    }
-
-    const username = await getInstagramUsername(instagramAccountId, pageAccessToken);
+    const userInfo = await getInstagramUserInfo(longToken);
 
     const serviceClient = await createServiceClient();
     const credentials: InstagramCredentials = {
-      instagram_account_id: instagramAccountId,
-      page_access_token: pageAccessToken,
-      page_id: pageId,
-      instagram_username: username ?? undefined,
+      access_token: longToken,
+      instagram_user_id: userInfo.user_id,
+      instagram_username: userInfo.username,
     };
 
     const { error: upsertError } = await serviceClient
@@ -146,9 +104,7 @@ export async function GET(request: NextRequest) {
 
   const successUrl = request.nextUrl.clone();
   successUrl.pathname = "/channels";
-  successUrl.search = webhookSubscribed
-    ? "?connected=true"
-    : "?connected=true&webhook_warning=true";
+  successUrl.search = "?connected=true";
   const response = NextResponse.redirect(successUrl);
   response.cookies.set("ig_oauth_state", "", { maxAge: 0, path: "/" });
 
