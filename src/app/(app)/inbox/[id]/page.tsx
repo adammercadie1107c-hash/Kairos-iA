@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ConversationControls } from "./controls";
 import { ReactivateAiButton } from "./reactivate-ai-button";
 import { DeleteConversationButton } from "./delete-button";
+import { ResetContactButton } from "./reset-contact-button";
 import { computeProspectScore, type ScoreLevel } from "@/lib/prospects/scoring";
 import type { ConversationStatus } from "@/lib/supabase/types";
 import type { Metadata } from "next";
@@ -373,6 +374,15 @@ export default async function ConversationPage({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {(process.env.NODE_ENV !== "production" || process.env.ALLOW_TEST_TOOLS === "true") && contact && (
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
+                Outils de test
+              </p>
+              <ResetContactButton externalId={contact.external_id} />
             </div>
           )}
 
