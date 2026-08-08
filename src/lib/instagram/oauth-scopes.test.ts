@@ -91,3 +91,68 @@ describe("OAuth module uses Instagram Login endpoints", () => {
     expect(oauthSource).not.toContain("subscribePageToApp");
   });
 });
+
+describe("Token exchange body format", () => {
+  const oauthSource = readFileSync(
+    join(__dirname, "./oauth.ts"),
+    "utf-8",
+  );
+
+  it("sends client_id in form body", () => {
+    expect(oauthSource).toContain('body.set("client_id"');
+  });
+
+  it("sends client_secret in form body", () => {
+    expect(oauthSource).toContain('body.set("client_secret"');
+  });
+
+  it("sends grant_type=authorization_code", () => {
+    expect(oauthSource).toContain('"grant_type", "authorization_code"');
+  });
+
+  it("sends redirect_uri in form body", () => {
+    expect(oauthSource).toContain('body.set("redirect_uri"');
+  });
+
+  it("sends code in form body", () => {
+    expect(oauthSource).toContain('body.set("code"');
+  });
+
+  it("sets Content-Type to application/x-www-form-urlencoded", () => {
+    expect(oauthSource).toContain("application/x-www-form-urlencoded");
+  });
+
+  it("does not log secrets", () => {
+    const lines = oauthSource.split("\n");
+    const logLines = lines.filter((l) =>
+      l.includes("console.log") || l.includes("console.info") || l.includes("console.debug"),
+    );
+    for (const line of logLines) {
+      expect(line).not.toMatch(/secret/i);
+      expect(line).not.toMatch(/access.?token/i);
+    }
+  });
+});
+
+describe("Callback guards missing env vars", () => {
+  const callbackSource = readFileSync(
+    join(__dirname, "../../app/api/auth/instagram/callback/route.ts"),
+    "utf-8",
+  );
+
+  it("checks META_APP_SECRET presence before token exchange", () => {
+    const secretCheck = callbackSource.indexOf("!appSecret");
+    const exchangeCall = callbackSource.indexOf("await exchangeCodeForToken(");
+    expect(secretCheck).toBeGreaterThan(-1);
+    expect(exchangeCall).toBeGreaterThan(secretCheck);
+  });
+
+  it("returns not_configured when env vars are missing", () => {
+    expect(callbackSource).toContain('redirectWithError("not_configured")');
+  });
+
+  it("logs which env vars are missing without exposing values", () => {
+    expect(callbackSource).toContain("!!appSecret");
+    expect(callbackSource).not.toMatch(/console\.(log|error|warn).*appSecret[^!]/);
+  });
+});

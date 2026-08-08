@@ -31,7 +31,8 @@ export async function exchangeCodeForToken(
 
   const res = await fetch("https://api.instagram.com/oauth/access_token", {
     method: "POST",
-    body,
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
   });
 
   if (!res.ok) {

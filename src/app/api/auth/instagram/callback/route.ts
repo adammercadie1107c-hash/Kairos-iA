@@ -55,9 +55,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const appId = process.env.META_APP_ID!;
-  const appSecret = process.env.META_APP_SECRET!;
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+
+  if (!appId || !appSecret || !redirectUri) {
+    console.error("[instagram oauth] missing env:", {
+      META_APP_ID: !!appId,
+      META_APP_SECRET: !!appSecret,
+      INSTAGRAM_REDIRECT_URI: !!redirectUri,
+    });
+    return redirectWithError("not_configured");
+  }
 
   try {
     const { access_token: shortToken } = await exchangeCodeForToken(
