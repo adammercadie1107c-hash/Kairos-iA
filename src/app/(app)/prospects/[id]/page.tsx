@@ -38,6 +38,11 @@ const CONV_STATUS_CONFIG: Record<string, { label: string; className: string }> =
   closed: { label: "Fermé", className: "bg-gray-100 text-gray-600" },
 };
 
+function prospectDisplayName(firstName: string, lastName: string): string {
+  const name = `${firstName} ${lastName}`.trim();
+  return name || "Prospect Instagram";
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -238,7 +243,7 @@ export default async function ProspectDetailPage({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-lg font-bold text-gray-900">
-              {prospect.first_name} {prospect.last_name}
+              {prospectDisplayName(prospect.first_name, prospect.last_name)}
             </h1>
             <span
               className={cn(
@@ -449,6 +454,7 @@ export default async function ProspectDetailPage({
                 isTerminal={isTerminal}
                 conversationId={conversation?.id ?? null}
                 aiEnabled={conversation?.ai_enabled ?? null}
+                nextFollowupAt={prospect.next_followup_at}
               />
             </div>
           </section>

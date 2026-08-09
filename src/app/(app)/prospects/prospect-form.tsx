@@ -87,7 +87,6 @@ export function ProspectForm({
               defaultValue={prospect?.first_name}
               error={fieldErrors.first_name}
               errId={errId("first_name")}
-              required
             />
             <FormField
               label="Nom"

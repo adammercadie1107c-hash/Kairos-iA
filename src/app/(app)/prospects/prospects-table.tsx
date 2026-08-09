@@ -47,6 +47,11 @@ const SCORE_COLORS: Record<ScoreLevel, { bg: string; text: string }> = {
   faible: { bg: "bg-red-100", text: "text-red-600" },
 };
 
+function prospectDisplayName(p: { first_name: string; last_name: string }): string {
+  const name = `${p.first_name} ${p.last_name}`.trim();
+  return name || "Prospect Instagram";
+}
+
 export function ProspectsTable({
   prospects,
   scores,
@@ -240,7 +245,7 @@ export function ProspectsTable({
                           href={`/prospects/${p.id}`}
                           className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
                         >
-                          {p.first_name} {p.last_name}
+                          {prospectDisplayName(p)}
                         </Link>
                         {p.company && (
                           <div className="text-xs text-gray-400">{p.company}</div>
@@ -345,7 +350,7 @@ export function ProspectsTable({
                         href={`/prospects/${p.id}`}
                         className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
                       >
-                        {p.first_name} {p.last_name}
+                        {prospectDisplayName(p)}
                       </Link>
                       {p.company && (
                         <p className="text-sm text-gray-500">{p.company}</p>
@@ -430,7 +435,7 @@ export function ProspectsTable({
       {deletingProspect && (
         <DeleteDialog
           prospectId={deletingProspect.id}
-          prospectName={`${deletingProspect.first_name} ${deletingProspect.last_name}`}
+          prospectName={prospectDisplayName(deletingProspect)}
           onClose={() => setDeletingProspect(null)}
         />
       )}

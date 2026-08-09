@@ -1,24 +1,50 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Trophy, XCircle, Bot } from "lucide-react";
+import { Calendar, Trophy, XCircle, Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { markProspectStatus, scheduleManualFollowup } from "../actions";
+import {
+  markProspectStatus,
+  updateFollowupDate,
+  cancelFollowup,
+} from "../actions";
 import { toggleAi } from "../../inbox/actions";
+
+function defaultDateTimeLocal(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function toDateTimeLocal(iso: string): string {
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
 
 export function ProspectQuickActions({
   prospectId,
   isTerminal,
   conversationId,
   aiEnabled,
+  nextFollowupAt,
 }: {
   prospectId: string;
   isTerminal: boolean;
   conversationId: string | null;
   aiEnabled: boolean | null;
+  nextFollowupAt: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [followupDate, setFollowupDate] = useState(
+    nextFollowupAt ? toDateTimeLocal(nextFollowupAt) : defaultDateTimeLocal(),
+  );
+  const [followupError, setFollowupError] = useState<string | null>(null);
   const router = useRouter();
 
   function handleMarkWon() {
@@ -35,10 +61,28 @@ export function ProspectQuickActions({
     });
   }
 
-  function handleScheduleFollowup() {
+  function handleSaveFollowup() {
+    setFollowupError(null);
     startTransition(async () => {
-      await scheduleManualFollowup(prospectId, 1);
-      router.refresh();
+      const iso = new Date(followupDate).toISOString();
+      const result = await updateFollowupDate(prospectId, iso);
+      if (result.error) {
+        setFollowupError(result.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  function handleCancelFollowup() {
+    setFollowupError(null);
+    startTransition(async () => {
+      const result = await cancelFollowup(prospectId);
+      if (result.error) {
+        setFollowupError(result.error);
+      } else {
+        router.refresh();
+      }
     });
   }
 
@@ -53,18 +97,49 @@ export function ProspectQuickActions({
   return (
     <>
       {!isTerminal && (
-        <button
-          type="button"
-          onClick={handleScheduleFollowup}
-          disabled={isPending}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50",
-            isPending && "opacity-50 cursor-not-allowed",
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-gray-600">
+            Prochaine relance
+          </label>
+          <input
+            type="datetime-local"
+            value={followupDate}
+            onChange={(e) => setFollowupDate(e.target.value)}
+            disabled={isPending}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {followupError && (
+            <p className="text-xs text-red-600">{followupError}</p>
           )}
-        >
-          <Calendar className="h-4 w-4" />
-          Planifier une relance
-        </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSaveFollowup}
+              disabled={isPending}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50",
+                isPending && "opacity-50 cursor-not-allowed",
+              )}
+            >
+              <Calendar className="h-4 w-4" />
+              Enregistrer
+            </button>
+            {nextFollowupAt && (
+              <button
+                type="button"
+                onClick={handleCancelFollowup}
+                disabled={isPending}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50",
+                  isPending && "opacity-50 cursor-not-allowed",
+                )}
+                title="Annuler la relance"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {conversationId && aiEnabled === false && (
