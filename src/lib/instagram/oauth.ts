@@ -1,8 +1,8 @@
-const GRAPH_BASE = "https://graph.facebook.com/v20.0";
+const IG_GRAPH_BASE = "https://graph.instagram.com";
 
-export interface UserTokenResponse {
+export interface ShortLivedTokenResponse {
   access_token: string;
-  token_type: string;
+  user_id: number;
 }
 
 export interface LongLivedTokenResponse {
@@ -11,82 +11,69 @@ export interface LongLivedTokenResponse {
   expires_in: number;
 }
 
-export interface FacebookPage {
-  id: string;
-  name: string;
-  access_token: string;
+export interface InstagramUserInfo {
+  user_id: string;
+  username: string;
 }
 
-/** Exchange authorization code for a short-lived user access token (Facebook OAuth). */
 export async function exchangeCodeForToken(
   code: string,
-  appId: string,
-  appSecret: string,
+  clientId: string,
+  clientSecret: string,
   redirectUri: string,
-): Promise<UserTokenResponse> {
-  const url = new URL(`${GRAPH_BASE}/oauth/access_token`);
-  url.searchParams.set("client_id", appId);
-  url.searchParams.set("client_secret", appSecret);
-  url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("code", code);
+): Promise<ShortLivedTokenResponse> {
+  const body = new URLSearchParams();
+  body.set("client_id", clientId);
+  body.set("client_secret", clientSecret);
+  body.set("grant_type", "authorization_code");
+  body.set("redirect_uri", redirectUri);
+  body.set("code", code);
 
-  const res = await fetch(url);
+  const res = await fetch("https://api.instagram.com/oauth/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Token exchange failed (${res.status}): ${body}`);
+    const text = await res.text();
+    throw new Error(`Token exchange failed (${res.status}): ${text}`);
   }
-  return res.json() as Promise<UserTokenResponse>;
+
+  return res.json() as Promise<ShortLivedTokenResponse>;
 }
 
-/** Exchange a short-lived user token for a long-lived one (~60 days). */
 export async function exchangeForLongLivedToken(
   shortToken: string,
-  appId: string,
-  appSecret: string,
+  clientSecret: string,
 ): Promise<LongLivedTokenResponse> {
-  const url = new URL(`${GRAPH_BASE}/oauth/access_token`);
-  url.searchParams.set("grant_type", "fb_exchange_token");
-  url.searchParams.set("client_id", appId);
-  url.searchParams.set("client_secret", appSecret);
-  url.searchParams.set("fb_exchange_token", shortToken);
+  const url = new URL(`${IG_GRAPH_BASE}/access_token`);
+  url.searchParams.set("grant_type", "ig_exchange_token");
+  url.searchParams.set("client_secret", clientSecret);
+  url.searchParams.set("access_token", shortToken);
 
   const res = await fetch(url);
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Long-lived token exchange failed (${res.status}): ${body}`);
+    const text = await res.text();
+    throw new Error(`Long-lived token exchange failed (${res.status}): ${text}`);
   }
+
   return res.json() as Promise<LongLivedTokenResponse>;
 }
 
-/** List Facebook Pages the user manages, with their long-lived Page Access Tokens. */
-export async function getUserPages(userAccessToken: string): Promise<FacebookPage[]> {
-  const url = new URL(`${GRAPH_BASE}/me/accounts`);
-  url.searchParams.set("fields", "id,name,access_token");
-  url.searchParams.set("access_token", userAccessToken);
+export async function getInstagramUserInfo(
+  accessToken: string,
+): Promise<InstagramUserInfo> {
+  const url = new URL(`${IG_GRAPH_BASE}/me`);
+  url.searchParams.set("fields", "user_id,username");
+  url.searchParams.set("access_token", accessToken);
 
   const res = await fetch(url);
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`/me/accounts failed (${res.status}): ${body}`);
+    const text = await res.text();
+    throw new Error(`User info fetch failed (${res.status}): ${text}`);
   }
-  const json = (await res.json()) as { data: FacebookPage[] };
-  return json.data ?? [];
-}
 
-/**
- * Return the Instagram Business Account ID linked to a Facebook Page,
- * or null if no Instagram account is connected.
- */
-export async function getInstagramAccountFromPage(
-  pageId: string,
-  pageAccessToken: string,
-): Promise<string | null> {
-  const url = new URL(`${GRAPH_BASE}/${pageId}`);
-  url.searchParams.set("fields", "instagram_business_account");
-  url.searchParams.set("access_token", pageAccessToken);
-
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const json = await res.json() as { instagram_business_account?: { id: string } };
-  return json.instagram_business_account?.id ?? null;
+  const json = await res.json() as { user_id: string; username: string };
+  return { user_id: json.user_id, username: json.username };
 }

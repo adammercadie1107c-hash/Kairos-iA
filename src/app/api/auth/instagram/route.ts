@@ -4,9 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * GET /api/auth/instagram
  *
- * Starts the Facebook Login for Business OAuth flow to connect an
+ * Starts the Instagram Login OAuth flow to connect an
  * Instagram Professional account. Requires an active Supabase session.
- * Sets a CSRF nonce cookie then redirects to Facebook's authorization dialog.
+ * Sets a CSRF nonce cookie then redirects to Instagram's authorization dialog.
  */
 export async function GET(_request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
@@ -30,22 +30,17 @@ export async function GET(_request: NextRequest) {
 
   const nonce = crypto.randomUUID();
 
-  // Facebook Login for Business — authorization dialog
   const scopes = [
-    "pages_show_list",
-    "pages_read_engagement",
-    "instagram_basic",
-    "instagram_manage_messages",
-    "business_management",
+    "instagram_business_basic",
+    "instagram_business_manage_messages",
   ].join(",");
 
-  const authUrl = new URL("https://www.facebook.com/dialog/oauth");
+  const authUrl = new URL("https://www.instagram.com/oauth/authorize");
   authUrl.searchParams.set("client_id", appId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("scope", scopes);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("state", nonce);
-  authUrl.searchParams.set("auth_type", "rerequest");
 
   const response = NextResponse.redirect(authUrl);
   response.cookies.set("ig_oauth_state", nonce, {

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MessageSquare } from "lucide-react";
+import { OrphanContacts } from "./orphan-contacts";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Inbox — Kairos iA" };
@@ -60,6 +61,42 @@ export default async function InboxPage({
     }
   }
 
+  const showTestTools =
+    process.env.NODE_ENV !== "production" ||
+    process.env.ALLOW_TEST_TOOLS === "true";
+
+  let orphanContacts: {
+    id: string;
+    external_id: string;
+    display_name: string | null;
+    extracted_info: Record<string, string>;
+  }[] = [];
+
+  if (showTestTools) {
+    const { data: allContacts } = await supabase
+      .from("contacts")
+      .select("id, external_id, display_name, extracted_info")
+      .eq("user_id", user.id);
+
+    if (allContacts && allContacts.length > 0) {
+      const { data: activeConvs } = await supabase
+        .from("conversations")
+        .select("contact_id")
+        .eq("user_id", user.id);
+
+      const activeContactIds = new Set(
+        (activeConvs ?? []).map((c) => c.contact_id),
+      );
+
+      orphanContacts = allContacts
+        .filter((c) => !activeContactIds.has(c.id))
+        .map((c) => ({
+          ...c,
+          extracted_info: (c.extracted_info ?? {}) as Record<string, string>,
+        }));
+    }
+  }
+
   const activeFilter = params.status || "all";
 
   return (
@@ -89,6 +126,8 @@ export default async function InboxPage({
           ))}
         </div>
       </div>
+
+      {showTestTools && <OrphanContacts contacts={orphanContacts} />}
 
       <div className="flex-1 overflow-y-auto">
         {(!conversations || conversations.length === 0) ? (

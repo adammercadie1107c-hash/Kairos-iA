@@ -17,6 +17,7 @@ export const AgentDecisionSchema = z.object({
     "send_booking",
     "escalate",
     "schedule_followup",
+    "request_human_confirmation",
   ]),
   message: z.string(),
   reason_code: z.enum([
@@ -32,11 +33,13 @@ export const AgentDecisionSchema = z.object({
     "sensitive_topic",
     "followup_needed",
     "not_a_fit",
+    "commercial_unknown",
   ]),
   handoff_reason: z.string().nullable(),
   extracted_info: z.record(z.string(), z.string()).optional(),
   new_status: z.enum(CONVERSATION_STATUSES).optional(),
   confidence: z.number().min(0).max(1),
+  alert_reason: z.string().optional(),
 });
 
 export type AgentDecision = z.infer<typeof AgentDecisionSchema>;

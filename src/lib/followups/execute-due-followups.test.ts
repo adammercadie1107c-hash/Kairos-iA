@@ -31,6 +31,7 @@ function createMockSupabase(tables: Record<string, Row[]>) {
           case "eq":
             return val === f.value;
           case "is":
+            if (f.value === null) return val === null || val === undefined;
             return val === f.value;
           case "lt":
             return typeof val === "number"
@@ -391,11 +392,11 @@ describe("executeDueFollowups", () => {
 
     const conv = tables.conversations[0];
     assert.equal(conv.followup_count, 1);
-    assert.equal(conv.next_followup_at, null);
+    assert.ok(conv.next_followup_at, "next_followup_at should be set for chained followup");
 
     const prospect = tables.prospects[0];
     assert.ok(prospect.last_followup_at);
-    assert.equal(prospect.next_followup_at, null);
+    assert.ok(prospect.next_followup_at, "prospect next_followup_at should be set for chained followup");
 
     const agentMessages = tables.messages.filter(
       (m) =>
@@ -582,8 +583,22 @@ describe("executeDueFollowups", () => {
     assert.equal(result.executed, 0);
   });
 
-  it("CRM next_followup_at cleared after execution", async () => {
+  it("CRM dates updated after execution with chain", async () => {
     const tables = baseTables();
+    tables.prospects[0].next_followup_at = "2026-07-31";
+
+    const deps = makeDeps(tables);
+    await executeDueFollowups(deps);
+
+    assert.ok(tables.conversations[0].next_followup_at, "next_followup_at should be set for next chain");
+    assert.ok(tables.prospects[0].next_followup_at, "prospect next_followup_at should be set for next chain");
+    assert.ok(tables.prospects[0].last_followup_at, "last_followup_at should be set");
+  });
+
+  it("CRM dates cleared when max_followups reached after execution", async () => {
+    const tables = baseTables();
+    tables.conversations[0].followup_count = 2;
+    (tables.agent_configs[0] as Row).max_followups = 3;
     tables.prospects[0].next_followup_at = "2026-07-31";
 
     const deps = makeDeps(tables);
@@ -591,6 +606,7 @@ describe("executeDueFollowups", () => {
 
     assert.equal(tables.conversations[0].next_followup_at, null);
     assert.equal(tables.prospects[0].next_followup_at, null);
+    assert.ok(tables.prospects[0].last_followup_at);
   });
 
   it("user isolation: different user conversation skips", async () => {
@@ -626,5 +642,153 @@ describe("executeDueFollowups", () => {
 
     assert.equal(result.skipped, 1);
     assert.equal(tables.scheduled_events[0].cancelled, true);
+  });
+
+  // --- Chained followup tests ---
+
+  it("followup 1 executed → followup 2 event created", async () => {
+    const tables = baseTables();
+    tables.conversations[0].followup_count = 0;
+    (tables.agent_configs[0] as Row).max_followups = 3;
+    tables.contacts[0].extracted_info = {};
+
+    const deps = makeDeps(tables);
+    const result = await executeDueFollowups(deps);
+
+    assert.equal(result.executed, 1);
+    assert.equal(tables.scheduled_events.length, 2, "should have original + new event");
+
+    const pendingEvents = tables.scheduled_events.filter(
+      (e) => !e.executed_at && !e.cancelled,
+    );
+    assert.equal(pendingEvents.length, 1, "one new pending event should exist");
+    assert.ok(
+      new Date(pendingEvents[0].scheduled_at as string).getTime() >
+        Date.now() + 71 * 3_600_000,
+      "next event should be ~72h in the future",
+    );
+  });
+
+  it("followup 2 not created when max_followups reached", async () => {
+    const tables = baseTables();
+    tables.conversations[0].followup_count = 2;
+    (tables.agent_configs[0] as Row).max_followups = 3;
+
+    const deps = makeDeps(tables);
+    const result = await executeDueFollowups(deps);
+
+    assert.equal(result.executed, 1);
+    assert.equal(tables.conversations[0].followup_count, 3);
+
+    const pendingEvents = tables.scheduled_events.filter(
+      (e) => !e.executed_at && !e.cancelled,
+    );
+    assert.equal(pendingEvents.length, 0, "no new pending event when max reached");
+    assert.equal(tables.conversations[0].next_followup_at, null);
+  });
+
+  it("no duplicate pending events created", async () => {
+    const tables = baseTables();
+    tables.scheduled_events.push({
+      id: "event-future",
+      conversation_id: CONV_ID,
+      type: "followup",
+      scheduled_at: futureDate(48),
+      executed_at: null,
+      cancelled: false,
+      processing_at: null,
+      attempts_count: 0,
+      last_error: null,
+      created_at: pastDate(1),
+    });
+
+    const deps = makeDeps(tables);
+    const result = await executeDueFollowups(deps);
+
+    assert.equal(result.executed, 1);
+
+    const pendingEvents = tables.scheduled_events.filter(
+      (e) => !e.executed_at && !e.cancelled,
+    );
+    assert.equal(pendingEvents.length, 1, "existing future event prevents duplication");
+    assert.equal(pendingEvents[0].id, "event-future");
+  });
+
+  it("handoff status prevents chained followup", async () => {
+    const tables = baseTables();
+    tables.conversations[0].status = "handoff";
+
+    const deps = makeDeps(tables);
+    const result = await executeDueFollowups(deps);
+
+    assert.equal(result.skipped, 1);
+    assert.equal(result.executed, 0);
+
+    const pendingEvents = tables.scheduled_events.filter(
+      (e) => !e.executed_at && !e.cancelled,
+    );
+    assert.equal(pendingEvents.length, 0);
+  });
+
+  it("disqualified status prevents chained followup", async () => {
+    const tables = baseTables();
+    tables.conversations[0].status = "disqualified";
+
+    const deps = makeDeps(tables);
+    const result = await executeDueFollowups(deps);
+
+    assert.equal(result.skipped, 1);
+
+    const pendingEvents = tables.scheduled_events.filter(
+      (e) => !e.executed_at && !e.cancelled,
+    );
+    assert.equal(pendingEvents.length, 0);
+  });
+
+  it("context with extracted_info passed to generator", async () => {
+    const tables = baseTables();
+    tables.contacts[0].extracted_info = { objectif: "perdre 10kg", budget: "500€" };
+    tables.conversations[0].status = "qualifying";
+
+    let capturedContext: unknown = null;
+    const contextCapturingGenerator: GenerateMessageFn = async (
+      _history,
+      _config,
+      _num,
+      context,
+    ) => {
+      capturedContext = context;
+      return { message: "Relance contextualisée" };
+    };
+
+    const deps = makeDeps(tables, { generator: contextCapturingGenerator });
+    await executeDueFollowups(deps);
+
+    assert.ok(capturedContext, "context should be passed to generator");
+    const ctx = capturedContext as { extractedInfo: Record<string, string>; conversationStatus: string };
+    assert.equal(ctx.conversationStatus, "qualifying");
+    assert.equal(ctx.extractedInfo.objectif, "perdre 10kg");
+    assert.equal(ctx.extractedInfo.budget, "500€");
+  });
+
+  it("generator receives different followupNumber for chain", async () => {
+    const tables = baseTables();
+    tables.conversations[0].followup_count = 1;
+    (tables.agent_configs[0] as Row).max_followups = 3;
+
+    let capturedFollowupNumber = 0;
+    const numberCapturingGenerator: GenerateMessageFn = async (
+      _history,
+      _config,
+      num,
+    ) => {
+      capturedFollowupNumber = num;
+      return { message: "Relance numéro " + num };
+    };
+
+    const deps = makeDeps(tables, { generator: numberCapturingGenerator });
+    await executeDueFollowups(deps);
+
+    assert.equal(capturedFollowupNumber, 2, "followup number should be 2");
   });
 });

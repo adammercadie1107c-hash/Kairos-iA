@@ -5,6 +5,7 @@ import {
   extractEmail,
   extractPhone,
   buildNotes,
+  buildQualificationSummary,
   syncQualifiedContactToProspect,
 } from "./contact-to-prospect";
 
@@ -79,6 +80,23 @@ describe("buildNotes", () => {
   });
   it("normalizes known keys", () => {
     assert.equal(buildNotes({ constraints: "pas de gluten" }), "Contraintes : pas de gluten");
+  });
+});
+
+describe("buildQualificationSummary", () => {
+  it("builds summary from key qualification fields", () => {
+    const info = { objectif: "Perdre 5kg", budget: "300€", motivation: "Mariage en juin" };
+    const summary = buildQualificationSummary(info);
+    assert.ok(summary.includes("Perdre 5kg"));
+    assert.ok(summary.includes("300€"));
+    assert.ok(summary.includes("Mariage en juin"));
+  });
+  it("returns empty for no qualification fields", () => {
+    assert.equal(buildQualificationSummary({ email: "a@b.com" }), "");
+  });
+  it("normalizes key names", () => {
+    const summary = buildQualificationSummary({ goal: "prise de masse" });
+    assert.ok(summary.includes("prise de masse"));
   });
 });
 
@@ -192,7 +210,7 @@ describe("syncQualifiedContactToProspect", () => {
     assert.equal(tables.prospects[0].last_name, "Curie");
     assert.equal(tables.prospects[0].email, "marie@lab.fr");
     assert.equal(tables.prospects[0].contact_id, CONTACT_ID);
-    assert.equal(tables.prospects[0].status, "contacte");
+    assert.equal(tables.prospects[0].status, "nouveau");
   });
 
   it("test 2: running twice does not create a duplicate", async () => {
@@ -271,16 +289,16 @@ describe("syncQualifiedContactToProspect", () => {
     assert.equal(tables.prospects[1].user_id, "user-2");
   });
 
-  it("test 7: non-qualified conversation skips", async () => {
+  it("test 7: non-qualified conversation creates prospect (no status gate)", async () => {
     const tables: Record<string, Record<string, unknown>[]> = {
       conversations: [{ id: CONV_ID, status: "qualifying", contact_id: CONTACT_ID, user_id: USER_ID }],
       contacts: [{ id: CONTACT_ID, display_name: "Test", extracted_info: {}, external_id: "ext-1" }],
       prospects: [],
     };
     const result = await syncQualifiedContactToProspect(createMockSupabase(tables) as never, CONV_ID, USER_ID);
-    assert.equal(result.action, "skipped");
-    assert.equal(result.reason, "not_qualified");
-    assert.equal(tables.prospects.length, 0);
+    assert.equal(result.action, "created");
+    assert.equal(tables.prospects.length, 1);
+    assert.equal(tables.prospects[0].status, "nouveau");
   });
 
   it("test 8: new prospect gets auto-scheduled next_followup_at", async () => {

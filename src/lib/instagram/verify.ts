@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export function verifySignature(
   body: string,
@@ -12,7 +12,5 @@ export function verifySignature(
 
   if (expected.length !== signature.length) return false;
 
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
-  return a.length === b.length && a.every((v, i) => v === b[i]);
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }

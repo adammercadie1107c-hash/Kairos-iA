@@ -1,7 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ConversationStatus } from "@/lib/supabase/types";
-
-const QUALIFIED_STATUSES: ConversationStatus[] = ["qualified", "booking_sent"];
+import type { ProspectStatus } from "@/lib/supabase/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -23,6 +21,13 @@ const INFO_KEY_MAP: Record<string, string> = {
   "niveau d'interet": "interet",
   "offre recherchee": "offre recherchee",
   offre: "offre recherchee",
+  blocage: "blocage",
+  blocages: "blocage",
+  timing: "timing",
+  delai: "timing",
+  disponibilite: "timing",
+  experience: "experience",
+  "experience passee": "experience",
 };
 
 function normalizeKey(key: string): string {
@@ -61,6 +66,21 @@ export function buildNotes(info: Record<string, string>): string {
   return lines.join("\n");
 }
 
+export function buildQualificationSummary(info: Record<string, string>): string {
+  const summaryKeys = ["objectif", "blocage", "motivation", "timing", "budget", "experience"];
+  const parts: string[] = [];
+
+  for (const [key, val] of Object.entries(info)) {
+    const normalized = normalizeKey(key);
+    if (summaryKeys.includes(normalized) && val.trim()) {
+      parts.push(val.trim());
+    }
+  }
+
+  if (parts.length === 0) return "";
+  return parts.join(" | ");
+}
+
 export function splitName(displayName: string): { first: string; last: string } {
   const parts = displayName.trim().split(/\s+/);
   if (parts.length === 0) return { first: "", last: "" };
@@ -74,11 +94,26 @@ export interface SyncResult {
   reason?: string;
 }
 
-export async function syncQualifiedContactToProspect(
+export interface SyncOptions {
+  prospectStatus?: ProspectStatus;
+}
+
+const STATUS_RANK: Record<ProspectStatus, number> = {
+  nouveau: 0,
+  contacte: 1,
+  a_relancer: 2,
+  gagne: 3,
+  perdu: -1,
+};
+
+export async function syncContactToProspect(
   supabase: SupabaseClient,
   conversationId: string,
   userId: string,
+  opts?: SyncOptions,
 ): Promise<SyncResult> {
+  const desiredStatus = opts?.prospectStatus ?? "nouveau";
+
   const { data: conversation } = await supabase
     .from("conversations")
     .select("id, status, contact_id, user_id")
@@ -88,10 +123,6 @@ export async function syncQualifiedContactToProspect(
 
   if (!conversation) {
     return { action: "skipped", reason: "conversation_not_found" };
-  }
-
-  if (!QUALIFIED_STATUSES.includes(conversation.status as ConversationStatus)) {
-    return { action: "skipped", reason: "not_qualified" };
   }
 
   const { data: contact } = await supabase
@@ -109,11 +140,15 @@ export async function syncQualifiedContactToProspect(
   const email = extractEmail(info);
   const phone = extractPhone(info);
   const notes = buildNotes(info);
+  const summary = buildQualificationSummary(info);
+  const nextAction = summary
+    ? `Qualifié IA : ${summary}`
+    : "Contacter suite a la qualification IA";
 
   // 1. Look for existing prospect by contact_id
   const { data: byContact } = await supabase
     .from("prospects")
-    .select("id, first_name, last_name, email, phone, notes, contact_id")
+    .select("id, first_name, last_name, email, phone, notes, contact_id, next_action, status")
     .eq("user_id", userId)
     .eq("contact_id", contact.id)
     .maybeSingle();
@@ -126,7 +161,14 @@ export async function syncQualifiedContactToProspect(
     if (!byContact.last_name && last) updates.last_name = last;
     if (!byContact.email && email) updates.email = email;
     if (!byContact.phone && phone) updates.phone = phone;
-    if (notes && !byContact.notes) updates.notes = notes;
+    if (notes) updates.notes = notes;
+    if (nextAction) updates.next_action = nextAction;
+
+    const currentRank = STATUS_RANK[byContact.status as ProspectStatus] ?? 0;
+    const desiredRank = STATUS_RANK[desiredStatus] ?? 0;
+    if (desiredStatus === "perdu" || desiredRank > currentRank) {
+      updates.status = desiredStatus;
+    }
 
     if (Object.keys(updates).length > 1) {
       await supabase
@@ -143,7 +185,7 @@ export async function syncQualifiedContactToProspect(
   if (email) {
     const { data: byEmail } = await supabase
       .from("prospects")
-      .select("id, first_name, last_name, phone, notes, contact_id")
+      .select("id, first_name, last_name, phone, notes, contact_id, status")
       .eq("user_id", userId)
       .ilike("email", email)
       .is("contact_id", null)
@@ -157,7 +199,14 @@ export async function syncQualifiedContactToProspect(
       if (!byEmail.first_name && first) updates.first_name = first;
       if (!byEmail.last_name && last) updates.last_name = last;
       if (!byEmail.phone && phone) updates.phone = phone;
-      if (notes && !byEmail.notes) updates.notes = notes;
+      if (notes) updates.notes = notes;
+      if (nextAction) updates.next_action = nextAction;
+
+      const currentRank = STATUS_RANK[byEmail.status as ProspectStatus] ?? 0;
+      const desiredRank = STATUS_RANK[desiredStatus] ?? 0;
+      if (desiredStatus === "perdu" || desiredRank > currentRank) {
+        updates.status = desiredStatus;
+      }
 
       await supabase
         .from("prospects")
@@ -169,7 +218,7 @@ export async function syncQualifiedContactToProspect(
     }
   }
 
-  // 3. Create new prospect with auto-scheduled follow-up
+  // 3. Create new prospect
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 0, 0, 0);
@@ -183,10 +232,12 @@ export async function syncQualifiedContactToProspect(
       last_name: last,
       email,
       phone,
-      status: "contacte",
+      status: desiredStatus,
       notes,
-      next_action: "Contacter suite a la qualification IA",
-      next_followup_at: tomorrow.toISOString().split("T")[0],
+      next_action: nextAction,
+      next_followup_at: desiredStatus !== "perdu"
+        ? tomorrow.toISOString().split("T")[0]
+        : null,
     })
     .select("id")
     .single();
@@ -195,9 +246,12 @@ export async function syncQualifiedContactToProspect(
     if (error.message.includes("prospects_user_contact_unique")) {
       return { action: "skipped", reason: "duplicate_contact" };
     }
-    console.error("syncQualifiedContactToProspect insert error:", error.message);
+    console.error("syncContactToProspect insert error:", error.message);
     return { action: "skipped", reason: error.message };
   }
 
   return { action: "created", prospectId: newProspect.id };
 }
+
+/** @deprecated Use syncContactToProspect instead */
+export const syncQualifiedContactToProspect = syncContactToProspect;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Plus,
   Pencil,
@@ -9,9 +10,11 @@ import {
   Users,
   ChevronUp,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Prospect } from "@/lib/supabase/types";
+import type { ProspectScore, ScoreLevel } from "@/lib/prospects/scoring";
 import { ProspectForm } from "./prospect-form";
 import { DeleteDialog } from "./delete-dialog";
 
@@ -35,14 +38,27 @@ const STATUS_FILTERS = [
   { value: "perdu", label: "Perdu" },
 ] as const;
 
-type SortKey = "name" | "company" | "status" | "next_followup_at" | "created_at";
+type SortKey = "name" | "company" | "status" | "score" | "next_followup_at" | "created_at";
 type SortDir = "asc" | "desc";
+
+const SCORE_COLORS: Record<ScoreLevel, { bg: string; text: string }> = {
+  fort: { bg: "bg-green-100", text: "text-green-700" },
+  moyen: { bg: "bg-yellow-100", text: "text-yellow-700" },
+  faible: { bg: "bg-red-100", text: "text-red-600" },
+};
+
+function prospectDisplayName(p: { first_name: string; last_name: string }): string {
+  const name = `${p.first_name} ${p.last_name}`.trim();
+  return name || "Prospect Instagram";
+}
 
 export function ProspectsTable({
   prospects,
+  scores,
   autoOpen,
 }: {
   prospects: Prospect[];
+  scores?: Record<string, ProspectScore>;
   autoOpen?: boolean;
 }) {
   const [search, setSearch] = useState("");
@@ -99,6 +115,9 @@ export function ProspectsTable({
           (a.next_followup_at ?? "9999").localeCompare(
             b.next_followup_at ?? "9999",
           );
+        break;
+      case "score":
+        cmp = (scores?.[a.id]?.score ?? 0) - (scores?.[b.id]?.score ?? 0);
         break;
       case "created_at":
         cmp = a.created_at.localeCompare(b.created_at);
@@ -199,10 +218,11 @@ export function ProspectsTable({
                   <Th onClick={() => toggleSort("name")}>
                     Nom {sortIcon("name")}
                   </Th>
-                  <Th onClick={() => toggleSort("company")}>
-                    Entreprise {sortIcon("company")}
-                  </Th>
                   <th className="px-4 py-3 font-medium text-gray-600">Contact</th>
+                  <th className="px-4 py-3 font-medium text-gray-600">Qualification</th>
+                  <Th onClick={() => toggleSort("score")}>
+                    Score {sortIcon("score")}
+                  </Th>
                   <Th onClick={() => toggleSort("status")}>
                     Statut {sortIcon("status")}
                   </Th>
@@ -221,23 +241,45 @@ export function ProspectsTable({
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">
-                          {p.first_name} {p.last_name}
-                        </div>
-                        {p.next_action && (
-                          <div className="text-xs text-gray-400 truncate max-w-[200px]">
-                            {p.next_action}
-                          </div>
+                        <Link
+                          href={`/prospects/${p.id}`}
+                          className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                        >
+                          {prospectDisplayName(p)}
+                        </Link>
+                        {p.company && (
+                          <div className="text-xs text-gray-400">{p.company}</div>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {p.company || "—"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-gray-600">{p.email || "—"}</div>
                         {p.phone && (
                           <div className="text-xs text-gray-400">{p.phone}</div>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.next_action && (
+                          <div className="text-xs text-blue-600 truncate max-w-[250px]">
+                            {p.next_action}
+                          </div>
+                        )}
+                        {p.notes && (
+                          <div className="text-xs text-gray-400 truncate max-w-[250px] mt-0.5">
+                            {p.notes}
+                          </div>
+                        )}
+                        {!p.next_action && !p.notes && "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {scores?.[p.id] ? (() => {
+                          const s = scores[p.id];
+                          const sc = SCORE_COLORS[s.level];
+                          return (
+                            <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", sc.bg, sc.text)}>
+                              {s.score}
+                            </span>
+                          );
+                        })() : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -258,6 +300,13 @@ export function ProspectsTable({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
+                          <Link
+                            href={`/prospects/${p.id}`}
+                            className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                            title="Voir la fiche"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
                           <button
                             type="button"
                             onClick={() => openEdit(p)}
@@ -297,21 +346,35 @@ export function ProspectsTable({
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">
-                        {p.first_name} {p.last_name}
-                      </p>
+                      <Link
+                        href={`/prospects/${p.id}`}
+                        className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                      >
+                        {prospectDisplayName(p)}
+                      </Link>
                       {p.company && (
                         <p className="text-sm text-gray-500">{p.company}</p>
                       )}
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                        st.className,
-                      )}
-                    >
-                      {st.label}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {scores?.[p.id] && (() => {
+                        const s = scores[p.id];
+                        const sc = SCORE_COLORS[s.level];
+                        return (
+                          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", sc.bg, sc.text)}>
+                            {s.score}
+                          </span>
+                        );
+                      })()}
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs font-medium",
+                          st.className,
+                        )}
+                      >
+                        {st.label}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-2 space-y-1 text-sm text-gray-500">
@@ -372,7 +435,7 @@ export function ProspectsTable({
       {deletingProspect && (
         <DeleteDialog
           prospectId={deletingProspect.id}
-          prospectName={`${deletingProspect.first_name} ${deletingProspect.last_name}`}
+          prospectName={prospectDisplayName(deletingProspect)}
           onClose={() => setDeletingProspect(null)}
         />
       )}

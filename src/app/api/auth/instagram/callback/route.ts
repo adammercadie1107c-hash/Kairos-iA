@@ -3,22 +3,10 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
-  getUserPages,
-  getInstagramAccountFromPage,
+  getInstagramUserInfo,
 } from "@/lib/instagram/oauth";
 import type { InstagramCredentials } from "@/lib/instagram/types";
 
-/**
- * GET /api/auth/instagram/callback
- *
- * Handles the OAuth callback from Facebook Login for Business.
- * Flow:
- *   code → short-lived user token → long-lived user token
- *   → list Facebook Pages → find Page with linked Instagram account
- *   → upsert channel with Page Access Token + Instagram account ID
- *
- * The token is stored server-side only; never exposed to the browser.
- */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
 
@@ -27,7 +15,6 @@ export async function GET(request: NextRequest) {
   const metaError = searchParams.get("error");
   const metaErrorDescription = searchParams.get("error_description");
 
-  // Helper to redirect with error params, using request URL origin
   const redirectWithError = (errorKey: string) => {
     const url = request.nextUrl.clone();
     url.pathname = "/channels";
@@ -36,12 +23,11 @@ export async function GET(request: NextRequest) {
   };
 
   if (metaError) {
-    console.error("Facebook OAuth error:", metaError, metaErrorDescription);
+    console.error("Instagram OAuth error:", metaError, metaErrorDescription);
     const key = metaError === "access_denied" ? "access_denied" : "oauth_failed";
     return redirectWithError(key);
   }
 
-  // CSRF — char-by-char comparison prevents timing attacks
   const storedState = request.cookies.get("ig_oauth_state")?.value;
   const stateValid =
     typeof storedState === "string" &&
@@ -69,9 +55,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const appId = process.env.META_APP_ID!;
-  const appSecret = process.env.META_APP_SECRET!;
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+
+  if (!appId || !appSecret || !redirectUri) {
+    console.error("[instagram oauth] missing env:", {
+      META_APP_ID: !!appId,
+      META_APP_SECRET: !!appSecret,
+      INSTAGRAM_REDIRECT_URI: !!redirectUri,
+    });
+    return redirectWithError("not_configured");
+  }
 
   try {
     const { access_token: shortToken } = await exchangeCodeForToken(
@@ -81,39 +76,18 @@ export async function GET(request: NextRequest) {
       redirectUri,
     );
 
-    const { access_token: longUserToken } = await exchangeForLongLivedToken(
+    const { access_token: longToken } = await exchangeForLongLivedToken(
       shortToken,
-      appId,
       appSecret,
     );
 
-    const pages = await getUserPages(longUserToken);
+    const userInfo = await getInstagramUserInfo(longToken);
 
-    if (pages.length === 0) {
-      return redirectWithError("no_pages");
-    }
-
-    let instagramAccountId: string | null = null;
-    let pageAccessToken: string | null = null;
-
-    for (const page of pages) {
-      const igId = await getInstagramAccountFromPage(page.id, page.access_token);
-      if (igId) {
-        instagramAccountId = igId;
-        pageAccessToken = page.access_token;
-        break;
-      }
-    }
-
-    if (!instagramAccountId || !pageAccessToken) {
-      return redirectWithError("no_instagram_account");
-    }
-
-    // 5. Upsert channel — service client bypasses RLS
     const serviceClient = await createServiceClient();
     const credentials: InstagramCredentials = {
-      instagram_account_id: instagramAccountId,
-      page_access_token: pageAccessToken,
+      access_token: longToken,
+      instagram_user_id: userInfo.user_id,
+      instagram_username: userInfo.username,
     };
 
     const { error: upsertError } = await serviceClient
@@ -137,7 +111,6 @@ export async function GET(request: NextRequest) {
     return redirectWithError("oauth_failed");
   }
 
-  // Success redirect
   const successUrl = request.nextUrl.clone();
   successUrl.pathname = "/channels";
   successUrl.search = "?connected=true";

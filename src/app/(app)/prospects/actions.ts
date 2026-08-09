@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { todayDateStr } from "@/lib/utils";
+
+import { syncFollowupDate } from "@/lib/followups/sync-followup-date";
 import type { ProspectStatus } from "@/lib/supabase/types";
 
 const VALID_STATUSES: ProspectStatus[] = [
@@ -55,10 +56,6 @@ function validateForm(formData: FormData, existingId?: string): {
   const nextAction = (formData.get("next_action") as string)?.trim() ?? "";
   const notes = (formData.get("notes") as string)?.trim() ?? "";
 
-  if (!firstName) {
-    fieldErrors.first_name = "Veuillez renseigner le prénom.";
-  }
-
   if (email && !EMAIL_RE.test(email)) {
     fieldErrors.email = "Saisissez une adresse email valide.";
   }
@@ -68,8 +65,10 @@ function validateForm(formData: FormData, existingId?: string): {
   }
 
   if (nextFollowup) {
-    const todayStr = todayDateStr();
-    if (nextFollowup < todayStr) {
+    const parsed = new Date(nextFollowup);
+    if (isNaN(parsed.getTime())) {
+      fieldErrors.next_followup_at = "Date invalide.";
+    } else if (parsed.getTime() < Date.now()) {
       fieldErrors.next_followup_at =
         "La date de prochaine relance ne peut pas être dans le passé.";
     }
@@ -161,7 +160,18 @@ export async function updateProspect(id: string, formData: FormData): Promise<Ac
     return { error: error.message };
   }
 
+  const followupIso = validation.fields.next_followup_at
+    ? new Date(validation.fields.next_followup_at).toISOString()
+    : null;
+
+  await syncFollowupDate(supabase, {
+    prospectId: id,
+    userId: user.id,
+    dateTimeIso: followupIso,
+  });
+
   revalidatePath("/prospects");
+  revalidatePath(`/prospects/${id}`);
   revalidatePath("/dashboard");
   revalidatePath("/relances");
   return { success: true };
@@ -183,6 +193,152 @@ export async function deleteProspect(id: string): Promise<ActionResult> {
   if (error) return { error: error.message };
 
   revalidatePath("/prospects");
+  revalidatePath("/dashboard");
+  revalidatePath("/relances");
+  return { success: true };
+}
+
+export async function markProspectStatus(
+  id: string,
+  status: "gagne" | "perdu",
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      status,
+      next_followup_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/prospects");
+  revalidatePath(`/prospects/${id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/relances");
+  return { success: true };
+}
+
+export async function scheduleManualFollowup(
+  id: string,
+  daysFromNow: number = 1,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const followupDate = new Date();
+  followupDate.setDate(followupDate.getDate() + daysFromNow);
+  const dateStr = followupDate.toISOString().split("T")[0];
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      next_followup_at: dateStr,
+      status: "a_relancer",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  await syncFollowupDate(supabase, {
+    prospectId: id,
+    userId: user.id,
+    dateTimeIso: followupDate.toISOString(),
+  });
+
+  revalidatePath("/prospects");
+  revalidatePath(`/prospects/${id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/relances");
+  return { success: true };
+}
+
+export async function updateFollowupDate(
+  prospectId: string,
+  dateTimeIso: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const scheduledDate = new Date(dateTimeIso);
+  if (isNaN(scheduledDate.getTime())) {
+    return { error: "Date invalide." };
+  }
+  if (scheduledDate.getTime() < Date.now()) {
+    return { error: "La date de relance ne peut pas être dans le passé." };
+  }
+
+  const dateOnly = scheduledDate.toISOString().split("T")[0];
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      next_followup_at: dateOnly,
+      status: "a_relancer",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", prospectId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  await syncFollowupDate(supabase, {
+    prospectId,
+    userId: user.id,
+    dateTimeIso: scheduledDate.toISOString(),
+  });
+
+  revalidatePath("/prospects");
+  revalidatePath(`/prospects/${prospectId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/relances");
+  return { success: true };
+}
+
+export async function cancelFollowup(
+  prospectId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Non authentifié" };
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      next_followup_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", prospectId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  await syncFollowupDate(supabase, {
+    prospectId,
+    userId: user.id,
+    dateTimeIso: null,
+  });
+
+  revalidatePath("/prospects");
+  revalidatePath(`/prospects/${prospectId}`);
   revalidatePath("/dashboard");
   revalidatePath("/relances");
   return { success: true };

@@ -4,7 +4,12 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft, Bot, User, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { ConversationControls } from "./controls";
+import { ReactivateAiButton } from "./reactivate-ai-button";
 import { DeleteConversationButton } from "./delete-button";
+import { ResetContactButton } from "./reset-contact-button";
+import { AlertBanner } from "../alert-banner";
+import { computeProspectScore, type ScoreLevel } from "@/lib/prospects/scoring";
+import type { ConversationStatus } from "@/lib/supabase/types";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Conversation — Kairos iA" };
@@ -82,6 +87,59 @@ export default async function ConversationPage({
         .maybeSingle()
     : { data: null };
 
+  // Get handoff reason from the most recent message that has one in metadata
+  let handoffReason: string | null = null;
+  if (conversation.status === "handoff" || !conversation.ai_enabled) {
+    const { data: recentMsgs } = await supabase
+      .from("messages")
+      .select("metadata")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (recentMsgs) {
+      for (const msg of recentMsgs) {
+        const meta = msg.metadata as Record<string, unknown> | null;
+        if (meta?.handoff_reason && typeof meta.handoff_reason === "string") {
+          handoffReason = meta.handoff_reason;
+          break;
+        }
+      }
+    }
+  }
+
+  const { data: conversationAlerts } = await supabase
+    .from("coach_alerts")
+    .select("id, type, reason, prospect_question, status, created_at")
+    .eq("conversation_id", id)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  const { data: agentConfig } = await supabase
+    .from("agent_configs")
+    .select("required_qualification_fields")
+    .eq("user_id", user.id)
+    .single();
+
+  const requiredFields: string[] = agentConfig?.required_qualification_fields ?? [];
+  const extractedInfo: Record<string, string> = contact?.extracted_info ?? {};
+
+  const filledFields: string[] = [];
+  const missingFields: string[] = [];
+  for (const field of requiredFields) {
+    const key = field.toLowerCase().trim();
+    const match = Object.entries(extractedInfo).find(
+      ([k]) => k.toLowerCase().trim() === key,
+    );
+    if (match && match[1]?.trim()) {
+      filledFields.push(field);
+    } else {
+      missingFields.push(field);
+    }
+  }
+  const qualificationProgress = requiredFields.length > 0
+    ? Math.round((filledFields.length / requiredFields.length) * 100)
+    : null;
+
   const status = statusLabels[conversation.status] ?? {
     label: conversation.status,
     className: "bg-gray-100 text-gray-600",
@@ -129,7 +187,7 @@ export default async function ConversationPage({
           <div className="flex items-center gap-1.5">
             {linkedProspect && (
               <Link
-                href={`/prospects?highlight=${linkedProspect.id}`}
+                href={`/prospects/${linkedProspect.id}`}
                 className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
               >
                 Prospect CRM
@@ -138,6 +196,29 @@ export default async function ConversationPage({
             <DeleteConversationButton conversationId={id} />
           </div>
         </div>
+
+        {/* Handoff banner */}
+        {!conversation.ai_enabled && (
+          <div className="mx-4 mt-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-orange-800">
+                Reprise humaine recommandée
+                {handoffReason && (
+                  <span className="font-normal text-orange-600">
+                    {" "}— {handoffReason}
+                  </span>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-orange-500">
+                L&apos;IA est désactivée. Les messages entrants ne déclencheront pas de réponse automatique.
+              </p>
+            </div>
+            <ReactivateAiButton conversationId={id} />
+          </div>
+        )}
+
+        {/* Coach alerts */}
+        <AlertBanner alerts={conversationAlerts ?? []} />
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -275,21 +356,86 @@ export default async function ConversationPage({
             {new Date(conversation.created_at).toLocaleDateString("fr-FR")}
           </InfoSection>
 
-          {contact?.extracted_info && Object.keys(contact.extracted_info).length > 0 && (
+          {qualificationProgress !== null && (
             <div>
               <p className="text-xs font-medium text-gray-500 mb-2">
-                Infos collectées
+                Qualification ({filledFields.length}/{requiredFields.length})
               </p>
-              <div className="space-y-1.5">
-                {Object.entries(contact.extracted_info).map(([key, value]) => (
-                  <div key={key} className="text-xs">
-                    <span className="font-medium text-gray-700">{key} :</span>{" "}
-                    <span className="text-gray-600">{value}</span>
-                  </div>
-                ))}
+              <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    qualificationProgress === 100 ? "bg-green-500" : "bg-blue-500",
+                  )}
+                  style={{ width: `${qualificationProgress}%` }}
+                />
               </div>
+              {missingFields.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-[11px] text-gray-400 mb-1">Manquants :</p>
+                  <div className="flex flex-wrap gap-1">
+                    {missingFields.map((f) => (
+                      <span
+                        key={f}
+                        className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-600"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {(process.env.NODE_ENV !== "production" || process.env.ALLOW_TEST_TOOLS === "true") && contact && (
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
+                Outils de test
+              </p>
+              <ResetContactButton externalId={contact.external_id} />
+            </div>
+          )}
+
+          {contact?.extracted_info && Object.keys(contact.extracted_info).length > 0 && (() => {
+            const score = computeProspectScore(
+              contact.extracted_info,
+              conversation.status as ConversationStatus,
+            );
+            const scoreColors: Record<ScoreLevel, string> = {
+              fort: "text-green-700 bg-green-100",
+              moyen: "text-yellow-700 bg-yellow-100",
+              faible: "text-red-600 bg-red-100",
+            };
+            return (
+              <>
+                <div>
+                  <p className="text-xs text-gray-500">Score prospect</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", scoreColors[score.level])}>
+                      {score.score}/100
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {score.level === "fort" ? "Fort" : score.level === "moyen" ? "Moyen" : "Faible"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">
+                    Infos collectées
+                  </p>
+                  <div className="space-y-1.5">
+                    {Object.entries(contact.extracted_info).map(([key, value]) => (
+                      <div key={key} className="text-xs">
+                        <span className="font-medium text-gray-700">{key} :</span>{" "}
+                        <span className="text-gray-600">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

@@ -3,9 +3,14 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { verifySignature } from "@/lib/instagram/verify";
 import { sendInstagramMessage } from "@/lib/instagram/send";
 import { runAgent } from "@/lib/agent/engine";
-import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
+import { mergeExtractedInfo } from "@/lib/agent/merge-info";
+import { canTransitionStatus } from "@/lib/conversations/status-machine";
+import { syncContactToProspect } from "@/lib/sync/contact-to-prospect";
+import { detectCommercialIntent } from "@/lib/sync/commercial-intent";
+import { checkProspectFit } from "@/lib/agent/fit-check";
+import { ensureFollowupScheduled } from "@/lib/followups/ensure-followup";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
-import type { AgentConfig, Message } from "@/lib/supabase/types";
+import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
 
 /**
  * GET /api/webhooks/instagram
@@ -38,14 +43,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET;
   if (!appSecret) {
-    console.error("META_APP_SECRET not configured");
+    console.error("[webhook] META_APP_SECRET not configured");
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
+
+  console.log("[webhook] app id loaded:", process.env.META_APP_ID);
 
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
-  if (!verifySignature(rawBody, signature, appSecret)) {
+  console.log("[webhook] signature present:", !!signature);
+  console.log("[webhook] secret present:", !!appSecret);
+
+  const signatureValid = verifySignature(rawBody, signature, appSecret);
+
+  console.log("[webhook] signature valid:", signatureValid);
+
+  if (!signatureValid) {
+    console.warn("[webhook] invalid signature — rejecting");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -90,20 +105,61 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ processed: results.length });
 }
 
+function extractRecentAgentQuestions(messages: Message[]): string[] {
+  const recent = messages.slice(-10);
+  const questions: string[] = [];
+  for (const msg of recent) {
+    if (msg.role !== "agent") continue;
+    const sentences = msg.content.split(/[.?!]+/).filter((s) => s.trim());
+    for (const s of sentences) {
+      if (s.includes("?") || s.trim().endsWith("?")) {
+        questions.push(s.trim());
+      }
+    }
+    if (msg.content.includes("?")) {
+      const qMatches = msg.content.match(/[^.!]*\?/g);
+      if (qMatches) {
+        for (const q of qMatches) {
+          const trimmed = q.trim();
+          if (trimmed.length > 10 && !questions.includes(trimmed)) {
+            questions.push(trimmed);
+          }
+        }
+      }
+    }
+  }
+  return questions.slice(-5);
+}
+
 async function handleInboundMessage(
   supabase: ReturnType<typeof createServiceClient> extends Promise<infer T> ? T : never,
   igAccountId: string,
   senderId: string,
   text: string,
 ): Promise<string> {
-  // Find channel by Instagram account ID
-  const { data: channel } = await supabase
+  // Find channel by Instagram account ID — fetch all active IG channels, match in JS
+  const { data: channels, error: channelError } = await supabase
     .from("channels")
-    .select("*")
+    .select("id, user_id, type, status, credentials")
     .eq("type", "instagram")
-    .eq("status", "active")
-    .filter("credentials->>instagram_account_id", "eq", igAccountId)
-    .maybeSingle();
+    .eq("status", "active");
+
+  if (channelError) {
+    console.error("[webhook] channel query error:", channelError.code, channelError.message, channelError.details);
+    return "channel_query_error";
+  }
+
+  const igIds = (channels ?? []).map((c) => (c.credentials as Record<string, unknown>)?.instagram_user_id);
+  console.log("[webhook] active IG channels found:", channels?.length ?? 0);
+  console.log("[webhook] IG user IDs in DB:", igIds);
+  console.log("[webhook] igAccountId from payload:", igAccountId);
+
+  const channel = channels?.find(
+    (item) =>
+      String((item.credentials as Record<string, unknown>)?.instagram_user_id) === String(igAccountId),
+  );
+
+  console.log("[webhook] channel matched:", !!channel);
 
   if (!channel) {
     console.error(`No active Instagram channel for account ${igAccountId}`);
@@ -189,6 +245,12 @@ async function handleInboundMessage(
     .update({ next_followup_at: null })
     .eq("id", conversationId);
 
+  await supabase
+    .from("prospects")
+    .update({ next_followup_at: null, updated_at: new Date().toISOString() })
+    .eq("contact_id", contact.id)
+    .eq("user_id", userId);
+
   // Check AI enabled
   if (!conversation.ai_enabled) {
     await supabase.from("messages").insert({
@@ -219,54 +281,131 @@ async function handleInboundMessage(
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
-  // Run agent
+  const historyMessages = (history ?? []) as Message[];
+
+  // Extract recent agent questions for anti-repetition
+  const recentAgentQuestions = extractRecentAgentQuestions(historyMessages);
+
+  // Run agent with qualification context
   const result = await runAgent(
-    (history ?? []) as Message[],
+    historyMessages,
     config as AgentConfig,
+    {
+      extractedInfo: contact.extracted_info ?? {},
+      conversationStatus: conversation.status,
+      recentAgentQuestions,
+    },
   );
 
   const { decision } = result;
 
-  // Save agent response
+  // Deterministic fit gate: merge extracted_info first to evaluate latest state
+  const latestInfo = decision.extracted_info && Object.keys(decision.extracted_info).length > 0
+    ? mergeExtractedInfo(contact.extracted_info ?? {}, decision.extracted_info)
+    : contact.extracted_info ?? {};
+
+  const prospectFit = checkProspectFit({
+    extractedInfo: latestInfo,
+    offer: (config as AgentConfig).offer,
+    qualificationRules: (config as AgentConfig).qualification_rules,
+  });
+
+  if (decision.action === "send_booking" && prospectFit !== "FIT") {
+    console.warn(`[webhook] booking gate: blocked send_booking (fit=${prospectFit})`);
+    decision.action = "reply";
+    decision.reason_code = "not_a_fit";
+    decision.new_status = prospectFit === "NOT_A_FIT" ? "disqualified" : undefined;
+  }
+
+  // Save agent response (include handoff_reason in metadata when escalating)
+  const messageMetadata: Record<string, unknown> = {
+    action: decision.action,
+    reason_code: decision.reason_code,
+    confidence: decision.confidence,
+  };
+  if (decision.handoff_reason) {
+    messageMetadata.handoff_reason = decision.handoff_reason;
+  }
+
   await supabase.from("messages").insert({
     conversation_id: conversationId,
     role: "agent",
     content: decision.message,
-    metadata: {
-      action: decision.action,
-      reason_code: decision.reason_code,
-      confidence: decision.confidence,
-    },
+    metadata: messageMetadata,
   });
 
   // Send reply via Instagram API
   await sendInstagramMessage(
+    credentials.instagram_user_id,
     senderId,
     decision.message,
-    credentials.page_access_token,
+    credentials.access_token,
   );
 
-  // Update contact extracted info
+  // Update contact extracted info (smart merge — never overwrite with empty)
   if (decision.extracted_info && Object.keys(decision.extracted_info).length > 0) {
-    const merged = { ...contact.extracted_info, ...decision.extracted_info };
+    const merged = mergeExtractedInfo(contact.extracted_info ?? {}, decision.extracted_info);
     await supabase
       .from("contacts")
       .update({ extracted_info: merged })
       .eq("id", contact.id);
+    contact.extracted_info = merged;
   }
 
-  // Update conversation status
+  // Update conversation status (with transition protection)
   const updates: Record<string, unknown> = {
     last_message_at: new Date().toISOString(),
   };
 
-  if (decision.new_status) {
-    updates.status = decision.new_status;
-  }
+  const currentStatus = conversation.status as ConversationStatus;
 
   if (decision.action === "escalate") {
     updates.ai_enabled = false;
     updates.status = "handoff";
+  } else if (decision.new_status && decision.new_status !== currentStatus) {
+    if (canTransitionStatus(currentStatus, decision.new_status as ConversationStatus, false)) {
+      updates.status = decision.new_status;
+    } else {
+      console.warn(
+        `[webhook] blocked status regression: ${currentStatus} → ${decision.new_status}`,
+      );
+    }
+  }
+
+  // Create coach alert for request_human_confirmation
+  if (decision.action === "request_human_confirmation") {
+    const alertType = decision.reason_code === "commercial_unknown"
+      ? "commercial_question"
+      : "human_confirmation";
+
+    await supabase.from("coach_alerts").insert({
+      user_id: userId,
+      conversation_id: conversationId,
+      contact_id: contact.id,
+      type: alertType,
+      reason: decision.alert_reason ?? decision.handoff_reason ?? "Question nécessitant confirmation du coach",
+      prospect_question: text,
+      metadata: {
+        reason_code: decision.reason_code,
+        source: "instagram",
+      },
+    });
+  }
+
+  // Create coach alert on escalate/handoff
+  if (decision.action === "escalate") {
+    await supabase.from("coach_alerts").insert({
+      user_id: userId,
+      conversation_id: conversationId,
+      contact_id: contact.id,
+      type: "handoff",
+      reason: decision.handoff_reason ?? "Demande humaine",
+      prospect_question: text,
+      metadata: {
+        reason_code: decision.reason_code,
+        source: "instagram",
+      },
+    });
   }
 
   if (decision.action === "schedule_followup") {
@@ -312,13 +451,37 @@ async function handleInboundMessage(
     .update(updates)
     .eq("id", conversationId);
 
-  // Sync qualified contact to CRM prospect
+  // Sync contact to CRM prospect on commercial intent
   const finalStatus = (updates.status as string) ?? conversation.status;
-  if (finalStatus === "qualified" || finalStatus === "booking_sent") {
+  const intent = detectCommercialIntent(decision, latestInfo, finalStatus, text);
+
+  if (intent.hasIntent) {
     try {
-      await syncQualifiedContactToProspect(supabase, conversationId, userId);
+      await syncContactToProspect(supabase, conversationId, userId, {
+        prospectStatus: intent.prospectStatus,
+      });
     } catch (syncErr) {
       console.error("Contact-to-prospect sync error:", syncErr);
+    }
+  }
+
+  // Deterministic first followup fallback
+  const FOLLOWUP_EXCLUDED = new Set(["handoff", "disqualified", "closed", "booking_sent"]);
+  if (
+    intent.hasIntent
+    && decision.action !== "schedule_followup"
+    && !FOLLOWUP_EXCLUDED.has(finalStatus)
+  ) {
+    try {
+      await ensureFollowupScheduled(supabase, {
+        conversationId,
+        contactId: contact.id,
+        userId,
+        maxFollowups: (config as AgentConfig).max_followups,
+        currentFollowupCount: conversation.followup_count ?? 0,
+      });
+    } catch (followupErr) {
+      console.error("Ensure followup error:", followupErr);
     }
   }
 

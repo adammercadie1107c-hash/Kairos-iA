@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function signup(formData: FormData) {
   const supabase = await createClient();
@@ -15,6 +15,7 @@ export async function signup(formData: FormData) {
     password,
     options: {
       data: { full_name: fullName },
+      emailRedirectTo: undefined,
     },
   });
 
@@ -23,7 +24,9 @@ export async function signup(formData: FormData) {
   }
 
   if (data.user) {
-    const { error: profileError } = await supabase.from("profiles").insert({
+    const service = await createServiceClient();
+
+    const { error: profileError } = await service.from("profiles").insert({
       id: data.user.id,
       email,
       full_name: fullName,
@@ -33,7 +36,7 @@ export async function signup(formData: FormData) {
       return { error: "Erreur lors de la création du profil." };
     }
 
-    const { error: configError } = await supabase
+    const { error: configError } = await service
       .from("agent_configs")
       .insert({ user_id: data.user.id });
 
@@ -41,7 +44,7 @@ export async function signup(formData: FormData) {
       return { error: "Erreur lors de la création de la configuration." };
     }
 
-    const { error: channelError } = await supabase.from("channels").insert({
+    const { error: channelError } = await service.from("channels").insert({
       user_id: data.user.id,
       type: "demo",
       status: "active",
@@ -49,6 +52,10 @@ export async function signup(formData: FormData) {
 
     if (channelError && !channelError.message.includes("duplicate")) {
       return { error: "Erreur lors de la création du canal démo." };
+    }
+
+    if (!data.session) {
+      await supabase.auth.signInWithPassword({ email, password });
     }
   }
 
