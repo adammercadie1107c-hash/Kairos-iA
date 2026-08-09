@@ -8,6 +8,7 @@ const INTENT_REASON_CODES = new Set([
   "objection_handled",
   "not_a_fit",
   "commercial_unknown",
+  "faq_answer",
 ]);
 
 const INTENT_ACTIONS = new Set([
@@ -21,6 +22,9 @@ const NO_INTENT_REASON_CODES = new Set([
   "sensitive_topic",
 ]);
 
+const PRICE_PATTERN = /\b(prix|tarifs?|co[uû]t[es]?|combien|paiement|devis|facturer?)\b/i;
+const OFFER_PATTERN = /\b(coaching|accompagnement|programme|formule|offre|inscription|commencer|me lancer)\b|inscrire\b/i;
+
 export interface CommercialIntentResult {
   hasIntent: boolean;
   prospectStatus: ProspectStatus;
@@ -30,6 +34,7 @@ export function detectCommercialIntent(
   decision: AgentDecision,
   extractedInfo: Record<string, string>,
   conversationStatus: string,
+  messageText?: string,
 ): CommercialIntentResult {
   if (NO_INTENT_REASON_CODES.has(decision.reason_code)) {
     return { hasIntent: false, prospectStatus: "nouveau" };
@@ -56,5 +61,13 @@ export function detectCommercialIntent(
     return { hasIntent: true, prospectStatus: "nouveau" };
   }
 
+  if (messageText && hasPriceOrOfferIntent(messageText)) {
+    return { hasIntent: true, prospectStatus: "nouveau" };
+  }
+
   return { hasIntent: false, prospectStatus: "nouveau" };
+}
+
+function hasPriceOrOfferIntent(text: string): boolean {
+  return PRICE_PATTERN.test(text) || OFFER_PATTERN.test(text);
 }

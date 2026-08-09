@@ -20,6 +20,27 @@ describe("detectCommercialIntent", () => {
       makeDecision({ reason_code: "greeting" }),
       {},
       "new",
+      "salut",
+    );
+    expect(result.hasIntent).toBe(false);
+  });
+
+  it("A: 'merci' → no intent", () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "merci",
+    );
+    expect(result.hasIntent).toBe(false);
+  });
+
+  it("A: emoji only → no intent", () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "👋",
     );
     expect(result.hasIntent).toBe(false);
   });
@@ -38,7 +59,6 @@ describe("detectCommercialIntent", () => {
     expect(result.prospectStatus).toBe("nouveau");
   });
 
-  // B variant: extracted_info alone triggers intent
   it("B: extracted_info with greeting reason → intent", () => {
     const result = detectCommercialIntent(
       makeDecision({ reason_code: "greeting" }),
@@ -48,7 +68,7 @@ describe("detectCommercialIntent", () => {
     expect(result.hasIntent).toBe(true);
   });
 
-  // C. ghosting case — same as B, prospect stays
+  // C. ghosting case
   it("C: qualification_progress action → intent", () => {
     const result = detectCommercialIntent(
       makeDecision({
@@ -62,7 +82,7 @@ describe("detectCommercialIntent", () => {
     expect(result.prospectStatus).toBe("nouveau");
   });
 
-  // D. qualification complete → updates same prospect to contacte
+  // D. qualification complete → contacte
   it("D: qualified status → intent, status contacte", () => {
     const result = detectCommercialIntent(
       makeDecision({ reason_code: "all_fields_collected" }),
@@ -73,17 +93,17 @@ describe("detectCommercialIntent", () => {
     expect(result.prospectStatus).toBe("contacte");
   });
 
-  // E. "Combien coûte ton coaching ?" → prospect created
-  it("E: faq_answer with extracted_info → intent", () => {
+  // E. Price/FAQ questions → prospect created
+  it("E: faq_answer reason_code → intent", () => {
     const result = detectCommercialIntent(
       makeDecision({ reason_code: "faq_answer" }),
-      { interet: "prix coaching" },
+      {},
       "qualifying",
+      "combien ça coûte ?",
     );
     expect(result.hasIntent).toBe(true);
   });
 
-  // E variant: commercial_unknown triggers intent
   it("E: commercial_unknown → intent", () => {
     const result = detectCommercialIntent(
       makeDecision({
@@ -102,6 +122,7 @@ describe("detectCommercialIntent", () => {
       makeDecision({ reason_code: "off_topic" }),
       {},
       "new",
+      "quel temps fait-il ?",
     );
     expect(result.hasIntent).toBe(false);
   });
@@ -115,7 +136,7 @@ describe("detectCommercialIntent", () => {
     expect(result.hasIntent).toBe(false);
   });
 
-  // G. NOT_A_FIT with commercial intent → prospect created as perdu
+  // G. NOT_A_FIT → perdu
   it("G: not_a_fit → intent with perdu status", () => {
     const result = detectCommercialIntent(
       makeDecision({ reason_code: "not_a_fit" }),
@@ -126,7 +147,7 @@ describe("detectCommercialIntent", () => {
     expect(result.prospectStatus).toBe("perdu");
   });
 
-  // H. booking_sent → updates existing prospect
+  // H. booking_sent → contacte
   it("H: booking_sent status → intent, status contacte", () => {
     const result = detectCommercialIntent(
       makeDecision({
@@ -156,5 +177,108 @@ describe("detectCommercialIntent", () => {
       "qualified",
     );
     expect(result.hasIntent).toBe(true);
+  });
+});
+
+describe("price/offer keyword detection", () => {
+  it('"quel est le prix" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "hello quel est le prix",
+    );
+    expect(result.hasIntent).toBe(true);
+    expect(result.prospectStatus).toBe("nouveau");
+  });
+
+  it('"c\'est combien ?" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "c'est combien ?",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"combien coûte le coaching ?" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "faq_answer" }),
+      {},
+      "new",
+      "combien coûte le coaching ?",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"vous avez quels tarifs ?" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "vous avez quels tarifs ?",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"je voudrais connaître le prix de l\'accompagnement" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "je voudrais connaître le prix de l'accompagnement",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"je veux commencer un accompagnement" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "je veux commencer un accompagnement",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"je cherche un coaching" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "je cherche un coaching",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"je veux m\'inscrire" → intent', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "je veux m'inscrire",
+    );
+    expect(result.hasIntent).toBe(true);
+  });
+
+  it('"salut" seul → no intent (pas de keyword commercial)', () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "greeting" }),
+      {},
+      "new",
+      "salut",
+    );
+    expect(result.hasIntent).toBe(false);
+  });
+
+  it("off_topic avec mot prix → no intent (off_topic prioritaire)", () => {
+    const result = detectCommercialIntent(
+      makeDecision({ reason_code: "off_topic" }),
+      {},
+      "new",
+      "le prix du pétrole monte",
+    );
+    expect(result.hasIntent).toBe(false);
   });
 });

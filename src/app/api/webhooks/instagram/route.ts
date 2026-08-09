@@ -452,7 +452,7 @@ async function handleInboundMessage(
 
   // Sync contact to CRM prospect on commercial intent
   const finalStatus = (updates.status as string) ?? conversation.status;
-  const intent = detectCommercialIntent(decision, latestInfo, finalStatus);
+  const intent = detectCommercialIntent(decision, latestInfo, finalStatus, text);
 
   if (intent.hasIntent) {
     try {
