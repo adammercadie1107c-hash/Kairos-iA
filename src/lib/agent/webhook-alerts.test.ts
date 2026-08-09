@@ -89,8 +89,8 @@ describe("webhook: no regression on existing behavior", () => {
     expect(webhookSource).toContain("sendInstagramMessage");
   });
 
-  it("still syncs to CRM on qualification", () => {
-    expect(webhookSource).toContain("syncQualifiedContactToProspect");
+  it("still syncs to CRM on commercial intent", () => {
+    expect(webhookSource).toContain("syncContactToProspect");
   });
 
   it("still merges extracted_info", () => {

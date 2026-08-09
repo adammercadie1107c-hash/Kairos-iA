@@ -5,7 +5,8 @@ import { sendInstagramMessage } from "@/lib/instagram/send";
 import { runAgent } from "@/lib/agent/engine";
 import { mergeExtractedInfo } from "@/lib/agent/merge-info";
 import { canTransitionStatus } from "@/lib/conversations/status-machine";
-import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
+import { syncContactToProspect } from "@/lib/sync/contact-to-prospect";
+import { detectCommercialIntent } from "@/lib/sync/commercial-intent";
 import { checkProspectFit } from "@/lib/agent/fit-check";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
 import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
@@ -449,18 +450,15 @@ async function handleInboundMessage(
     .update(updates)
     .eq("id", conversationId);
 
-  // Sync contact to CRM prospect — trigger on status OR signals from agent
+  // Sync contact to CRM prospect on commercial intent
   const finalStatus = (updates.status as string) ?? conversation.status;
-  const shouldSync =
-    finalStatus === "qualified" ||
-    finalStatus === "booking_sent" ||
-    decision.action === "send_booking" ||
-    decision.reason_code === "all_fields_collected" ||
-    decision.reason_code === "booking_ready";
+  const intent = detectCommercialIntent(decision, latestInfo, finalStatus);
 
-  if (shouldSync) {
+  if (intent.hasIntent) {
     try {
-      await syncQualifiedContactToProspect(supabase, conversationId, userId);
+      await syncContactToProspect(supabase, conversationId, userId, {
+        prospectStatus: intent.prospectStatus,
+      });
     } catch (syncErr) {
       console.error("Contact-to-prospect sync error:", syncErr);
     }
