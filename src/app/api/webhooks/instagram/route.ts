@@ -449,9 +449,16 @@ async function handleInboundMessage(
     .update(updates)
     .eq("id", conversationId);
 
-  // Sync qualified contact to CRM prospect
+  // Sync contact to CRM prospect — trigger on status OR signals from agent
   const finalStatus = (updates.status as string) ?? conversation.status;
-  if (finalStatus === "qualified" || finalStatus === "booking_sent") {
+  const shouldSync =
+    finalStatus === "qualified" ||
+    finalStatus === "booking_sent" ||
+    decision.action === "send_booking" ||
+    decision.reason_code === "all_fields_collected" ||
+    decision.reason_code === "booking_ready";
+
+  if (shouldSync) {
     try {
       await syncQualifiedContactToProspect(supabase, conversationId, userId);
     } catch (syncErr) {

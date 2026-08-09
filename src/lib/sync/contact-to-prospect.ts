@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ConversationStatus } from "@/lib/supabase/types";
 
-const QUALIFIED_STATUSES: ConversationStatus[] = ["qualified", "booking_sent"];
+const QUALIFIED_STATUSES: ConversationStatus[] = ["qualifying", "qualified", "booking_sent"];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
