@@ -131,3 +131,25 @@ export interface ScheduledEvent {
   last_error: string | null;
   created_at: string;
 }
+
+export type CoachAlertType =
+  | "human_confirmation"
+  | "handoff"
+  | "commercial_question"
+  | "booking_intent";
+
+export type CoachAlertStatus = "pending" | "resolved";
+
+export interface CoachAlert {
+  id: string;
+  user_id: string;
+  conversation_id: string;
+  contact_id: string;
+  type: CoachAlertType;
+  reason: string;
+  prospect_question: string;
+  status: CoachAlertStatus;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  resolved_at: string | null;
+}

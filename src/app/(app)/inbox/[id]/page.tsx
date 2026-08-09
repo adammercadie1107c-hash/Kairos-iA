@@ -7,6 +7,7 @@ import { ConversationControls } from "./controls";
 import { ReactivateAiButton } from "./reactivate-ai-button";
 import { DeleteConversationButton } from "./delete-button";
 import { ResetContactButton } from "./reset-contact-button";
+import { AlertBanner } from "../alert-banner";
 import { computeProspectScore, type ScoreLevel } from "@/lib/prospects/scoring";
 import type { ConversationStatus } from "@/lib/supabase/types";
 import type { Metadata } from "next";
@@ -105,6 +106,13 @@ export default async function ConversationPage({
       }
     }
   }
+
+  const { data: conversationAlerts } = await supabase
+    .from("coach_alerts")
+    .select("id, type, reason, prospect_question, status, created_at")
+    .eq("conversation_id", id)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
   const { data: agentConfig } = await supabase
     .from("agent_configs")
@@ -208,6 +216,9 @@ export default async function ConversationPage({
             <ReactivateAiButton conversationId={id} />
           </div>
         )}
+
+        {/* Coach alerts */}
+        <AlertBanner alerts={conversationAlerts ?? []} />
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">

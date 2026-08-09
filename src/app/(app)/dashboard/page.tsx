@@ -19,6 +19,7 @@ import {
   Send,
   HeadphonesIcon,
   RotateCcw,
+  Bell,
 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Dashboard — Kairos iA" };
@@ -55,6 +56,12 @@ export default async function DashboardPage({
       : "30d";
 
   const kpis = await fetchDashboardKpis(supabase, user.id, period);
+
+  const { count: pendingAlerts } = await supabase
+    .from("coach_alerts")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("status", "pending");
 
   const { data: allProspects } = await supabase
     .from("prospects")
@@ -210,6 +217,13 @@ export default async function DashboardPage({
           value={relancesOverdue}
           color="red"
           href="/relances"
+        />
+        <KpiCard
+          icon={Bell}
+          label="À traiter"
+          value={pendingAlerts ?? 0}
+          color={(pendingAlerts ?? 0) > 0 ? "orange" : "blue"}
+          href="/inbox"
         />
       </div>
 

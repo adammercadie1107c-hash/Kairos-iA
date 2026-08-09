@@ -105,6 +105,32 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ processed: results.length });
 }
 
+function extractRecentAgentQuestions(messages: Message[]): string[] {
+  const recent = messages.slice(-10);
+  const questions: string[] = [];
+  for (const msg of recent) {
+    if (msg.role !== "agent") continue;
+    const sentences = msg.content.split(/[.?!]+/).filter((s) => s.trim());
+    for (const s of sentences) {
+      if (s.includes("?") || s.trim().endsWith("?")) {
+        questions.push(s.trim());
+      }
+    }
+    if (msg.content.includes("?")) {
+      const qMatches = msg.content.match(/[^.!]*\?/g);
+      if (qMatches) {
+        for (const q of qMatches) {
+          const trimmed = q.trim();
+          if (trimmed.length > 10 && !questions.includes(trimmed)) {
+            questions.push(trimmed);
+          }
+        }
+      }
+    }
+  }
+  return questions.slice(-5);
+}
+
 async function handleInboundMessage(
   supabase: ReturnType<typeof createServiceClient> extends Promise<infer T> ? T : never,
   igAccountId: string,
@@ -255,13 +281,19 @@ async function handleInboundMessage(
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
+  const historyMessages = (history ?? []) as Message[];
+
+  // Extract recent agent questions for anti-repetition
+  const recentAgentQuestions = extractRecentAgentQuestions(historyMessages);
+
   // Run agent with qualification context
   const result = await runAgent(
-    (history ?? []) as Message[],
+    historyMessages,
     config as AgentConfig,
     {
       extractedInfo: contact.extracted_info ?? {},
       conversationStatus: conversation.status,
+      recentAgentQuestions,
     },
   );
 
@@ -320,6 +352,42 @@ async function handleInboundMessage(
         `[webhook] blocked status regression: ${currentStatus} → ${decision.new_status}`,
       );
     }
+  }
+
+  // Create coach alert for request_human_confirmation
+  if (decision.action === "request_human_confirmation") {
+    const alertType = decision.reason_code === "commercial_unknown"
+      ? "commercial_question"
+      : "human_confirmation";
+
+    await supabase.from("coach_alerts").insert({
+      user_id: userId,
+      conversation_id: conversationId,
+      contact_id: contact.id,
+      type: alertType,
+      reason: decision.alert_reason ?? decision.handoff_reason ?? "Question nécessitant confirmation du coach",
+      prospect_question: text,
+      metadata: {
+        reason_code: decision.reason_code,
+        source: "instagram",
+      },
+    });
+  }
+
+  // Create coach alert on escalate/handoff
+  if (decision.action === "escalate") {
+    await supabase.from("coach_alerts").insert({
+      user_id: userId,
+      conversation_id: conversationId,
+      contact_id: contact.id,
+      type: "handoff",
+      reason: decision.handoff_reason ?? "Demande humaine",
+      prospect_question: text,
+      metadata: {
+        reason_code: decision.reason_code,
+        source: "instagram",
+      },
+    });
   }
 
   if (decision.action === "schedule_followup") {

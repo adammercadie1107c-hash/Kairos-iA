@@ -31,7 +31,7 @@ const navItems = [
 
 const bottomNavItems = navItems.slice(0, 5);
 
-export function Sidebar({ user }: { user: User }) {
+export function Sidebar({ user, pendingAlerts = 0 }: { user: User; pendingAlerts?: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -47,6 +47,7 @@ export function Sidebar({ user }: { user: User }) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = pathname.startsWith(item.href);
+            const badge = item.href === "/inbox" ? pendingAlerts : 0;
             return (
               <Link
                 key={item.href}
@@ -60,6 +61,11 @@ export function Sidebar({ user }: { user: User }) {
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
+                {badge > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                    {badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -147,17 +153,23 @@ export function Sidebar({ user }: { user: User }) {
         {bottomNavItems.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
+          const badge = item.href === "/inbox" ? pendingAlerts : 0;
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
+                "relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
                 active ? "text-blue-600" : "text-gray-500",
               )}
             >
               <Icon className="h-5 w-5" />
               {item.label}
+              {badge > 0 && (
+                <span className="absolute top-1 right-1/4 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                  {badge}
+                </span>
+              )}
             </Link>
           );
         })}

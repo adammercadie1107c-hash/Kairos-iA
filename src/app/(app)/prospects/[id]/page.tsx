@@ -115,6 +115,17 @@ export default async function ProspectDetailPage({
     }
   }
 
+  const { data: prospectAlerts } = prospect.contact_id
+    ? await supabase
+        .from("coach_alerts")
+        .select("id, type, reason, prospect_question, status, created_at")
+        .eq("contact_id", prospect.contact_id)
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(5)
+    : { data: null };
+
   const displayFields = extractDisplayFields(
     extractedInfo,
     prospect.email,
@@ -395,6 +406,28 @@ export default async function ProspectDetailPage({
               </div>
             )}
           </section>
+
+          {/* Coach alerts */}
+          {(prospectAlerts ?? []).length > 0 && (
+            <section className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+              <h2 className="text-sm font-semibold text-orange-800 mb-3">
+                Alertes coach ({(prospectAlerts ?? []).length})
+              </h2>
+              <div className="space-y-2">
+                {(prospectAlerts ?? []).map((alert) => (
+                  <div key={alert.id} className="rounded-lg bg-white border border-orange-100 p-3">
+                    <p className="text-xs font-medium text-gray-800">{alert.reason}</p>
+                    <p className="mt-1 text-xs text-gray-500 italic truncate">
+                      &quot;{alert.prospect_question}&quot;
+                    </p>
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      {new Date(alert.created_at).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Quick actions */}
           <section className="rounded-lg border border-gray-200 bg-white p-4">
