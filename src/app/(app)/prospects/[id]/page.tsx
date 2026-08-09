@@ -120,6 +120,21 @@ export default async function ProspectDetailPage({
     }
   }
 
+  let pendingFollowupAt: string | null = null;
+  if (conversation) {
+    const { data: pendingEvent } = await supabase
+      .from("scheduled_events")
+      .select("scheduled_at")
+      .eq("conversation_id", conversation.id)
+      .is("executed_at", null)
+      .eq("cancelled", false)
+      .order("scheduled_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    pendingFollowupAt = pendingEvent?.scheduled_at ?? null;
+  }
+
   const { data: prospectAlerts } = prospect.contact_id
     ? await supabase
         .from("coach_alerts")
@@ -454,7 +469,7 @@ export default async function ProspectDetailPage({
                 isTerminal={isTerminal}
                 conversationId={conversation?.id ?? null}
                 aiEnabled={conversation?.ai_enabled ?? null}
-                nextFollowupAt={prospect.next_followup_at}
+                nextFollowupAt={pendingFollowupAt ?? prospect.next_followup_at}
               />
             </div>
           </section>
@@ -478,8 +493,8 @@ export default async function ProspectDetailPage({
               <DateField
                 icon={<Calendar className="h-4 w-4 text-blue-400" />}
                 label="Prochaine relance"
-                value={formatDate(prospect.next_followup_at)}
-                highlight={!!prospect.next_followup_at}
+                value={pendingFollowupAt ? formatDateTime(pendingFollowupAt) : formatDate(prospect.next_followup_at)}
+                highlight={!!(pendingFollowupAt ?? prospect.next_followup_at)}
               />
               <DateField
                 icon={<Clock className="h-4 w-4 text-gray-400" />}

@@ -96,4 +96,21 @@ describe("prospect: followup date management", () => {
     );
     expect(updateSection).toContain("syncFollowupDate");
   });
+
+  it("detail page fetches pending scheduled_event for exact time", () => {
+    expect(detailSource).toContain("scheduled_events");
+    expect(detailSource).toContain("pendingFollowupAt");
+    expect(detailSource).toContain('is("executed_at", null)');
+    expect(detailSource).toContain('eq("cancelled", false)');
+  });
+
+  it("detail page passes pendingFollowupAt to ProspectQuickActions", () => {
+    expect(detailSource).toContain(
+      "nextFollowupAt={pendingFollowupAt ?? prospect.next_followup_at}",
+    );
+  });
+
+  it("detail page shows full datetime for pending followup", () => {
+    expect(detailSource).toContain("formatDateTime(pendingFollowupAt)");
+  });
 });
