@@ -72,6 +72,26 @@ describe("vercel.json cron config", () => {
   });
 });
 
+describe("middleware: /api/cron/ bypasses auth redirect", () => {
+  const middlewareSource = readFileSync(
+    join(__dirname, "../supabase/middleware.ts"),
+    "utf-8",
+  );
+
+  it("excludes /api/cron/ from auth redirect", () => {
+    expect(middlewareSource).toContain('"/api/cron/"');
+    expect(middlewareSource).toContain("isCron");
+  });
+
+  it("isCron is checked in the redirect condition", () => {
+    const redirectLine = middlewareSource
+      .split("\n")
+      .find((l) => l.includes("!isAuthPage") && l.includes("!isPublicPage"));
+    expect(redirectLine).toBeDefined();
+    expect(redirectLine).toContain("!isCron");
+  });
+});
+
 describe("no double processing", () => {
   const engineSource = readFileSync(
     join(__dirname, "./execute-due-followups.ts"),

@@ -39,8 +39,9 @@ export async function updateSession(request: NextRequest) {
 
   const isWebhook = request.nextUrl.pathname.startsWith("/api/webhooks/");
   const isIgOAuth = request.nextUrl.pathname.startsWith("/api/auth/instagram");
+  const isCron = request.nextUrl.pathname.startsWith("/api/cron/");
 
-  if (!user && !isAuthPage && !isPublicPage && !isWebhook && !isIgOAuth && request.nextUrl.pathname !== "/") {
+  if (!user && !isAuthPage && !isPublicPage && !isWebhook && !isIgOAuth && !isCron && request.nextUrl.pathname !== "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
