@@ -97,7 +97,11 @@ describe("webhook: no regression on existing behavior", () => {
     expect(webhookSource).toContain("mergeExtractedInfo");
   });
 
-  it("still has P1-BLOCKER signature bypass", () => {
-    expect(webhookSource).toContain("P1-BLOCKER");
+  it("has NO signature bypass — strict 401 rejection", () => {
+    expect(webhookSource).not.toContain("P1-BLOCKER");
+    expect(webhookSource).not.toContain("processing anyway");
+    expect(webhookSource).not.toContain("bypass");
+    expect(webhookSource).toContain("invalid signature");
+    expect(webhookSource).toContain("401");
   });
 });
