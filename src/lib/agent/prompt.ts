@@ -1,9 +1,11 @@
 import type { AgentConfig } from "@/lib/supabase/types";
+import { checkProspectFit, type FitResult } from "./fit-check";
 
 export interface QualificationContext {
   extractedInfo: Record<string, string>;
   conversationStatus: string;
   recentAgentQuestions?: string[];
+  prospectFit?: FitResult;
 }
 
 export function buildSystemPrompt(
@@ -84,6 +86,45 @@ RÈGLE ANTI-RÉPÉTITION :
 
   const bookingAlreadySent = context?.conversationStatus === "booking_sent";
 
+  const prospectFit: FitResult = context
+    ? (context.prospectFit ?? checkProspectFit({
+        extractedInfo: context.extractedInfo,
+        offer: config.offer,
+        qualificationRules: config.qualification_rules,
+      }))
+    : "UNCERTAIN";
+
+  const hasAcceptedGoals = Array.isArray(config.qualification_rules?.accepted_goals)
+    && (config.qualification_rules.accepted_goals as string[]).length > 0;
+
+  let fitBlock = "";
+  if (hasAcceptedGoals) {
+    const accepted = (config.qualification_rules.accepted_goals as string[]).join(", ");
+    const rejected = Array.isArray(config.qualification_rules?.rejected_goals)
+      ? (config.qualification_rules.rejected_goals as string[]).join(", ")
+      : "";
+
+    fitBlock = `\n## COMPATIBILITÉ OFFRE / PROSPECT
+Objectifs accompagnés par cette offre : ${accepted}
+${rejected ? `Objectifs explicitement hors périmètre : ${rejected}` : ""}
+
+FIT ACTUEL DU PROSPECT : **${prospectFit}**
+
+RÈGLES :
+- FIT → le prospect est compatible. Booking possible si qualifié.
+- UNCERTAIN → objectif pas encore connu ou ambigu. Pose une question de clarification ("Ton objectif est plutôt X, Y, ou autre chose ?"). N'envoie PAS le booking.
+- NOT_A_FIT → objectif explicitement hors périmètre.
+  → N'envoie JAMAIS le lien de réservation.
+  → Ne dis JAMAIS "ton profil correspond" ou "on peut t'aider".
+  → Sois transparent : "Cet accompagnement est principalement conçu pour ${accepted}. Pour ton objectif, ce n'est probablement pas l'offre la plus adaptée."
+  → reason_code: "not_a_fit", new_status: "disqualified"
+  → Si le prospect précise ensuite un objectif compatible, le fit PEUT changer. Ne verrouille pas définitivement.
+
+COHÉRENCE ABSOLUE :
+- Si tu as dit "ce programme n'est pas conçu pour ton objectif", ne dis PAS ensuite "ton profil correspond".
+- Le fit actuel (${prospectFit}) est ta source de vérité. Chaque message doit être cohérent avec ce fit.`;
+  }
+
   return `Tu es l'assistant IA de "${config.business_name}". Tu réponds aux prospects qui contactent l'entreprise.
 
 ## TON RÔLE
@@ -110,6 +151,7 @@ ${requiredFieldsBlock}
 ${progressBlock}
 ${existingInfoBlock}
 ${recentQuestionsBlock}
+${fitBlock}
 
 ## LIEN DE RÉSERVATION
 ${config.booking_link ? `Quand le prospect est qualifié, envoie ce lien UNE SEULE FOIS : ${config.booking_link}` : "Aucun lien configuré. Propose au prospect de prendre contact directement."}
@@ -120,6 +162,7 @@ RÈGLES BOOKING :
 - N'envoie le lien QUE si la qualification est suffisante OU si le prospect exprime une intention claire ("je veux me lancer", "on peut s'appeler", "je veux réserver").
 - Ne l'envoie PAS après seulement 2-3 informations collectées si le prospect n'a pas montré d'intérêt pour avancer.
 - Une fois envoyé, ne le répète PAS sauf si le prospect le demande explicitement ("je ne retrouve plus le lien").
+- N'envoie JAMAIS le lien si le fit prospect est NOT_A_FIT ou UNCERTAIN.
 
 ## ANTI-HALLUCINATION COMMERCIALE
 Tu ne peux affirmer une condition commerciale QUE si elle est explicitement présente dans L'OFFRE ou la FAQ ci-dessus.

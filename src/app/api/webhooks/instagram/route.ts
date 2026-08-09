@@ -6,6 +6,7 @@ import { runAgent } from "@/lib/agent/engine";
 import { mergeExtractedInfo } from "@/lib/agent/merge-info";
 import { canTransitionStatus } from "@/lib/conversations/status-machine";
 import { syncQualifiedContactToProspect } from "@/lib/sync/contact-to-prospect";
+import { checkProspectFit } from "@/lib/agent/fit-check";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
 import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
 
@@ -295,6 +296,24 @@ async function handleInboundMessage(
   );
 
   const { decision } = result;
+
+  // Deterministic fit gate: merge extracted_info first to evaluate latest state
+  const latestInfo = decision.extracted_info && Object.keys(decision.extracted_info).length > 0
+    ? mergeExtractedInfo(contact.extracted_info ?? {}, decision.extracted_info)
+    : contact.extracted_info ?? {};
+
+  const prospectFit = checkProspectFit({
+    extractedInfo: latestInfo,
+    offer: (config as AgentConfig).offer,
+    qualificationRules: (config as AgentConfig).qualification_rules,
+  });
+
+  if (decision.action === "send_booking" && prospectFit !== "FIT") {
+    console.warn(`[webhook] booking gate: blocked send_booking (fit=${prospectFit})`);
+    decision.action = "reply";
+    decision.reason_code = "not_a_fit";
+    decision.new_status = prospectFit === "NOT_A_FIT" ? "disqualified" : undefined;
+  }
 
   // Save agent response (include handoff_reason in metadata when escalating)
   const messageMetadata: Record<string, unknown> = {
