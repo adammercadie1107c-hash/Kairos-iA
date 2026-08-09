@@ -14,7 +14,22 @@ const STATUS_OPTIONS = [
   { value: "perdu", label: "Perdu" },
 ] as const;
 
-const todayStr = () => new Date().toISOString().split("T")[0];
+function toDateTimeLocal(dateStr: string): string {
+  if (dateStr.includes("T")) {
+    const d = new Date(dateStr);
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+  return `${dateStr}T09:00`;
+}
+
+function nowDateTimeLocal(): string {
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
 
 export function ProspectForm({
   prospect,
@@ -41,6 +56,10 @@ export function ProspectForm({
     setSuccess(false);
 
     const formData = new FormData(e.currentTarget);
+    const rawFollowup = formData.get("next_followup_at") as string;
+    if (rawFollowup) {
+      formData.set("next_followup_at", new Date(rawFollowup).toISOString());
+    }
 
     startTransition(async () => {
       const result = isEdit
@@ -147,10 +166,10 @@ export function ProspectForm({
                 Prochaine relance
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 name="next_followup_at"
-                defaultValue={prospect?.next_followup_at ?? ""}
-                min={todayStr()}
+                defaultValue={prospect?.next_followup_at ? toDateTimeLocal(prospect.next_followup_at) : ""}
+                min={nowDateTimeLocal()}
                 aria-invalid={!!fieldErrors.next_followup_at}
                 aria-describedby={fieldErrors.next_followup_at ? errId("next_followup_at") : undefined}
                 className={cn(

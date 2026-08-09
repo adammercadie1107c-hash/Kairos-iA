@@ -28,18 +28,34 @@ const quickActionsSource = readFileSync(
 );
 
 describe("prospect: first_name is optional", () => {
-  it("form does not mark first_name as required", () => {
-    const firstNameField = formSource.slice(
-      formSource.indexOf('name="first_name"') - 200,
-      formSource.indexOf('name="first_name"') + 50,
-    );
-    expect(firstNameField).not.toContain("required");
+  it("form does not pass required to first_name FormField", () => {
+    const firstNameIdx = formSource.indexOf('name="first_name"');
+    const fieldStart = formSource.lastIndexOf("<FormField", firstNameIdx);
+    const fieldEnd = formSource.indexOf("/>", firstNameIdx);
+    const fieldBlock = formSource.slice(fieldStart, fieldEnd);
+    expect(fieldBlock).not.toContain("required");
   });
 
-  it("validation does not reject empty first_name", () => {
+  it("form has noValidate to prevent browser native validation", () => {
+    expect(formSource).toContain("noValidate");
+  });
+
+  it("FormField does not add HTML required attribute to input", () => {
+    const formFieldFn = formSource.slice(
+      formSource.indexOf("function FormField("),
+    );
+    const inputTag = formFieldFn.slice(
+      formFieldFn.indexOf("<input"),
+      formFieldFn.indexOf("/>", formFieldFn.indexOf("<input")) + 2,
+    );
+    expect(inputTag).not.toContain("required");
+  });
+
+  it("server validation does not reject empty first_name", () => {
     expect(actionsSource).not.toContain(
       'fieldErrors.first_name = "Veuillez renseigner le prénom."',
     );
+    expect(actionsSource).not.toContain("!firstName");
   });
 
   it("table uses fallback display name for empty names", () => {
@@ -54,12 +70,34 @@ describe("prospect: first_name is optional", () => {
 });
 
 describe("prospect: followup date management", () => {
+  it("prospect form modal uses datetime-local for followup", () => {
+    const followupSection = formSource.slice(
+      formSource.indexOf("Prochaine relance"),
+    );
+    expect(followupSection).toContain('type="datetime-local"');
+    expect(followupSection).not.toContain('type="date"');
+  });
+
+  it("prospect form converts datetime-local to ISO before submitting", () => {
+    expect(formSource).toContain("new Date(rawFollowup).toISOString()");
+  });
+
   it("actions export updateFollowupDate", () => {
     expect(actionsSource).toContain("export async function updateFollowupDate");
   });
 
   it("actions export cancelFollowup", () => {
     expect(actionsSource).toContain("export async function cancelFollowup");
+  });
+
+  it("actions validate followup with Date object, not string compare", () => {
+    const validateSection = actionsSource.slice(
+      actionsSource.indexOf("function validateForm"),
+      actionsSource.indexOf("if (Object.keys(fieldErrors)"),
+    );
+    expect(validateSection).toContain("new Date(nextFollowup)");
+    expect(validateSection).not.toContain("todayDateStr");
+    expect(validateSection).not.toContain("< todayStr");
   });
 
   it("updateFollowupDate calls syncFollowupDate", () => {
@@ -80,7 +118,7 @@ describe("prospect: followup date management", () => {
     expect(cancelSection).toContain("next_followup_at: null");
   });
 
-  it("detail page has datetime-local input for followup", () => {
+  it("detail page quick actions has datetime-local input", () => {
     expect(quickActionsSource).toContain("datetime-local");
   });
 

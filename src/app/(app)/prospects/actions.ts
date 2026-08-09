@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { todayDateStr } from "@/lib/utils";
+
 import { syncFollowupDate } from "@/lib/followups/sync-followup-date";
 import type { ProspectStatus } from "@/lib/supabase/types";
 
@@ -65,8 +65,10 @@ function validateForm(formData: FormData, existingId?: string): {
   }
 
   if (nextFollowup) {
-    const todayStr = todayDateStr();
-    if (nextFollowup < todayStr) {
+    const parsed = new Date(nextFollowup);
+    if (isNaN(parsed.getTime())) {
+      fieldErrors.next_followup_at = "Date invalide.";
+    } else if (parsed.getTime() < Date.now()) {
       fieldErrors.next_followup_at =
         "La date de prochaine relance ne peut pas être dans le passé.";
     }
@@ -159,7 +161,7 @@ export async function updateProspect(id: string, formData: FormData): Promise<Ac
   }
 
   const followupIso = validation.fields.next_followup_at
-    ? new Date(`${validation.fields.next_followup_at}T09:00:00Z`).toISOString()
+    ? new Date(validation.fields.next_followup_at).toISOString()
     : null;
 
   await syncFollowupDate(supabase, {
