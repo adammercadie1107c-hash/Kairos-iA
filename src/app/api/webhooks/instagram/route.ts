@@ -8,6 +8,7 @@ import { canTransitionStatus } from "@/lib/conversations/status-machine";
 import { syncContactToProspect } from "@/lib/sync/contact-to-prospect";
 import { detectCommercialIntent } from "@/lib/sync/commercial-intent";
 import { checkProspectFit } from "@/lib/agent/fit-check";
+import { ensureFollowupScheduled } from "@/lib/followups/ensure-followup";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
 import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
 
@@ -461,6 +462,26 @@ async function handleInboundMessage(
       });
     } catch (syncErr) {
       console.error("Contact-to-prospect sync error:", syncErr);
+    }
+  }
+
+  // Deterministic first followup fallback
+  const FOLLOWUP_EXCLUDED = new Set(["handoff", "disqualified", "closed", "booking_sent"]);
+  if (
+    intent.hasIntent
+    && decision.action !== "schedule_followup"
+    && !FOLLOWUP_EXCLUDED.has(finalStatus)
+  ) {
+    try {
+      await ensureFollowupScheduled(supabase, {
+        conversationId,
+        contactId: contact.id,
+        userId,
+        maxFollowups: (config as AgentConfig).max_followups,
+        currentFollowupCount: conversation.followup_count ?? 0,
+      });
+    } catch (followupErr) {
+      console.error("Ensure followup error:", followupErr);
     }
   }
 
