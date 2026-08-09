@@ -52,13 +52,25 @@ function prospectDisplayName(p: { first_name: string; last_name: string }): stri
   return name || "Prospect Instagram";
 }
 
+function formatFollowup(iso: string): string {
+  return new Date(iso).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function ProspectsTable({
   prospects,
   scores,
+  followupTimestamps,
   autoOpen,
 }: {
   prospects: Prospect[];
   scores?: Record<string, ProspectScore>;
+  followupTimestamps?: Record<string, string>;
   autoOpen?: boolean;
 }) {
   const [search, setSearch] = useState("");
@@ -110,12 +122,12 @@ export function ProspectsTable({
       case "status":
         cmp = a.status.localeCompare(b.status);
         break;
-      case "next_followup_at":
-        cmp =
-          (a.next_followup_at ?? "9999").localeCompare(
-            b.next_followup_at ?? "9999",
-          );
+      case "next_followup_at": {
+        const aFollowup = followupTimestamps?.[a.id] ?? a.next_followup_at ?? "9999";
+        const bFollowup = followupTimestamps?.[b.id] ?? b.next_followup_at ?? "9999";
+        cmp = aFollowup.localeCompare(bFollowup);
         break;
+      }
       case "score":
         cmp = (scores?.[a.id]?.score ?? 0) - (scores?.[b.id]?.score ?? 0);
         break;
@@ -292,11 +304,11 @@ export function ProspectsTable({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {p.next_followup_at
-                          ? new Date(p.next_followup_at).toLocaleDateString(
-                              "fr-FR",
-                            )
-                          : "—"}
+                        {followupTimestamps?.[p.id]
+                          ? formatFollowup(followupTimestamps[p.id])
+                          : p.next_followup_at
+                            ? new Date(p.next_followup_at).toLocaleDateString("fr-FR")
+                            : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
@@ -380,12 +392,12 @@ export function ProspectsTable({
                   <div className="mt-2 space-y-1 text-sm text-gray-500">
                     {p.email && <p>{p.email}</p>}
                     {p.phone && <p>{p.phone}</p>}
-                    {p.next_followup_at && (
+                    {(followupTimestamps?.[p.id] || p.next_followup_at) && (
                       <p>
                         Relance :{" "}
-                        {new Date(p.next_followup_at).toLocaleDateString(
-                          "fr-FR",
-                        )}
+                        {followupTimestamps?.[p.id]
+                          ? formatFollowup(followupTimestamps[p.id])
+                          : new Date(p.next_followup_at!).toLocaleDateString("fr-FR")}
                       </p>
                     )}
                   </div>
