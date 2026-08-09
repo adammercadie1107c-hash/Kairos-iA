@@ -5,23 +5,21 @@ import { generateFollowupMessage } from "@/lib/followups/generate-followup";
 import { resolveTransport } from "@/lib/followups/transport";
 
 /**
- * POST /api/cron/followups
+ * GET & POST /api/cron/followups
  *
- * Protected cron endpoint for executing due follow-up events.
+ * Executes due follow-up events. Called automatically by Vercel Cron
+ * every 15 minutes (GET), or manually via POST for testing.
  *
  * Authentication:
  *   Authorization: Bearer ${CRON_SECRET}
- *   The CRON_SECRET env var must be set in .env.local
+ *   The CRON_SECRET env var must be set in Vercel project settings.
  *
- * n8n configuration:
- *   - HTTP method: POST
- *   - URL: https://<domain>/api/cron/followups
- *   - Header: Authorization: Bearer <value of CRON_SECRET>
- *   - Recommended interval: every 15 minutes
+ * Vercel Cron configuration: see vercel.json at project root.
  *
  * Response: { found, claimed, executed, skipped, failed }
  */
-export async function POST(request: NextRequest) {
+
+function verifyCronAuth(request: NextRequest): NextResponse | null {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json(
@@ -35,30 +33,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  return null;
+}
+
+async function handleFollowups(): Promise<NextResponse> {
+  const supabase = await createServiceClient();
+
+  const result = await executeDueFollowups(
+    {
+      supabase,
+      generateMessage: generateFollowupMessage,
+      resolveTransport,
+    },
+    { batchSize: 10 },
+  );
+
+  return NextResponse.json({
+    found: result.found,
+    claimed: result.claimed,
+    executed: result.executed,
+    skipped: result.skipped,
+    failed: result.failed,
+  });
+}
+
+export async function GET(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
+
   try {
-    const supabase = await createServiceClient();
-
-    const result = await executeDueFollowups(
-      {
-        supabase,
-        generateMessage: generateFollowupMessage,
-        resolveTransport,
-      },
-      { batchSize: 10 },
-    );
-
-    return NextResponse.json({
-      found: result.found,
-      claimed: result.claimed,
-      executed: result.executed,
-      skipped: result.skipped,
-      failed: result.failed,
-    });
+    return await handleFollowups();
   } catch (err) {
     console.error("Cron followups error:", err);
-    return NextResponse.json(
-      { error: "Internal error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
+
+  try {
+    return await handleFollowups();
+  } catch (err) {
+    console.error("Cron followups error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
