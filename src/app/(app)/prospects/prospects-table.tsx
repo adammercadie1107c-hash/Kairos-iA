@@ -307,7 +307,7 @@ export function ProspectsTable({
                         {followupTimestamps?.[p.id]
                           ? formatFollowup(followupTimestamps[p.id])
                           : p.next_followup_at
-                            ? new Date(p.next_followup_at).toLocaleDateString("fr-FR")
+                            ? `Rappel — ${new Date(p.next_followup_at).toLocaleDateString("fr-FR")}`
                             : "—"}
                       </td>
                       <td className="px-4 py-3">
@@ -394,10 +394,9 @@ export function ProspectsTable({
                     {p.phone && <p>{p.phone}</p>}
                     {(followupTimestamps?.[p.id] || p.next_followup_at) && (
                       <p>
-                        Relance :{" "}
                         {followupTimestamps?.[p.id]
-                          ? formatFollowup(followupTimestamps[p.id])
-                          : new Date(p.next_followup_at!).toLocaleDateString("fr-FR")}
+                          ? `Relance : ${formatFollowup(followupTimestamps[p.id])}`
+                          : `Rappel — ${new Date(p.next_followup_at!).toLocaleDateString("fr-FR")}`}
                       </p>
                     )}
                   </div>

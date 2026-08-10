@@ -42,6 +42,7 @@ export function ProspectForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [reminderOnly, setReminderOnly] = useState(false);
   const [notesLen, setNotesLen] = useState(prospect?.notes?.length ?? 0);
   const [actionLen, setActionLen] = useState(prospect?.next_action?.length ?? 0);
   const isEdit = !!prospect;
@@ -54,6 +55,7 @@ export function ProspectForm({
     setFieldErrors({});
     setGlobalError(null);
     setSuccess(false);
+    setReminderOnly(false);
 
     const formData = new FormData(e.currentTarget);
     const rawFollowup = formData.get("next_followup_at") as string;
@@ -72,7 +74,8 @@ export function ProspectForm({
         setGlobalError(result.error);
       } else {
         setSuccess(true);
-        setTimeout(() => onClose(), 400);
+        if (result.reminder_only) setReminderOnly(true);
+        setTimeout(() => onClose(), result.reminder_only ? 2000 : 400);
       }
     });
   }
@@ -245,9 +248,15 @@ export function ProspectForm({
             </p>
           )}
 
-          {success && (
+          {success && !reminderOnly && (
             <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">
               {isEdit ? "Prospect mis à jour." : "Prospect créé."}
+            </p>
+          )}
+
+          {success && reminderOnly && (
+            <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+              Rappel enregistré. Ce prospect n&apos;est pas lié à une conversation Instagram, aucun DM automatique ne sera envoyé.
             </p>
           )}
 

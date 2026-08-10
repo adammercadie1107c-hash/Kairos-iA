@@ -158,6 +158,69 @@ describe("prospect: followup date management", () => {
   });
 });
 
+describe("prospect: relance auto vs rappel coach", () => {
+  it("ActionResult includes reminder_only field", () => {
+    expect(actionsSource).toContain("reminder_only?: boolean");
+  });
+
+  it("updateFollowupDate returns reminder_only when no_linked_contact", () => {
+    const updateFollowupSection = actionsSource.slice(
+      actionsSource.indexOf("async function updateFollowupDate"),
+      actionsSource.indexOf("async function cancelFollowup"),
+    );
+    expect(updateFollowupSection).toContain("syncResult.reason === \"no_linked_contact\"");
+    expect(updateFollowupSection).toContain("reminder_only: true");
+  });
+
+  it("updateProspect returns reminder_only when no_linked_contact", () => {
+    const updateSection = actionsSource.slice(
+      actionsSource.indexOf("async function updateProspect"),
+      actionsSource.indexOf("async function deleteProspect"),
+    );
+    expect(updateSection).toContain("syncResult.reason === \"no_linked_contact\"");
+    expect(updateSection).toContain("reminder_only: true");
+  });
+
+  it("quick actions shows 'Relance automatique' when conversationId exists", () => {
+    expect(quickActionsSource).toContain("Relance automatique");
+    const relanceSection = quickActionsSource.slice(
+      quickActionsSource.indexOf("Relance automatique"),
+    );
+    expect(relanceSection).toContain("datetime-local");
+  });
+
+  it("quick actions shows 'Rappel coach' when no conversationId", () => {
+    expect(quickActionsSource).toContain("Rappel coach");
+    expect(quickActionsSource).toContain(
+      "Aucune conversation Instagram liée",
+    );
+  });
+
+  it("quick actions shows reminder_only feedback", () => {
+    expect(quickActionsSource).toContain("reminderOnly");
+    expect(quickActionsSource).toContain("aucun DM automatique ne sera envoyé");
+  });
+
+  it("prospect form handles reminder_only feedback", () => {
+    expect(formSource).toContain("reminderOnly");
+    expect(formSource).toContain("result.reminder_only");
+    expect(formSource).toContain("aucun DM automatique ne sera envoyé");
+  });
+
+  it("table shows 'Rappel' prefix for manual prospect followup", () => {
+    expect(tableSource).toContain("Rappel —");
+  });
+
+  it("table shows relance datetime from followupTimestamps (no Rappel prefix)", () => {
+    const desktopCell = tableSource.slice(
+      tableSource.indexOf("followupTimestamps?.[p.id]"),
+    );
+    const firstTernary = desktopCell.slice(0, desktopCell.indexOf("</td>"));
+    expect(firstTernary).toContain("formatFollowup");
+    expect(firstTernary).toContain("Rappel —");
+  });
+});
+
 describe("prospect list: followup column shows datetime from scheduled_events", () => {
   it("list page fetches pending scheduled_events for conversations", () => {
     expect(listPageSource).toContain("scheduled_events");

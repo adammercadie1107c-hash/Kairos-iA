@@ -24,6 +24,7 @@ interface ActionResult {
   error?: string;
   fieldErrors?: Record<string, string>;
   success?: boolean;
+  reminder_only?: boolean;
 }
 
 function validateForm(formData: FormData, existingId?: string): {
@@ -164,7 +165,7 @@ export async function updateProspect(id: string, formData: FormData): Promise<Ac
     ? new Date(validation.fields.next_followup_at).toISOString()
     : null;
 
-  await syncFollowupDate(supabase, {
+  const syncResult = await syncFollowupDate(supabase, {
     prospectId: id,
     userId: user.id,
     dateTimeIso: followupIso,
@@ -174,6 +175,11 @@ export async function updateProspect(id: string, formData: FormData): Promise<Ac
   revalidatePath(`/prospects/${id}`);
   revalidatePath("/dashboard");
   revalidatePath("/relances");
+
+  if (!syncResult.synced && syncResult.reason === "no_linked_contact") {
+    return { success: true, reminder_only: true };
+  }
+
   return { success: true };
 }
 
@@ -298,7 +304,7 @@ export async function updateFollowupDate(
 
   if (error) return { error: error.message };
 
-  await syncFollowupDate(supabase, {
+  const syncResult = await syncFollowupDate(supabase, {
     prospectId,
     userId: user.id,
     dateTimeIso: scheduledDate.toISOString(),
@@ -308,6 +314,11 @@ export async function updateFollowupDate(
   revalidatePath(`/prospects/${prospectId}`);
   revalidatePath("/dashboard");
   revalidatePath("/relances");
+
+  if (!syncResult.synced && syncResult.reason === "no_linked_contact") {
+    return { success: true, reminder_only: true };
+  }
+
   return { success: true };
 }
 
