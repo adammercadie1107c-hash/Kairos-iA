@@ -54,6 +54,7 @@ function prospectDisplayName(p: { first_name: string; last_name: string }): stri
 
 function formatFollowup(iso: string): string {
   return new Date(iso).toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -307,7 +308,7 @@ export function ProspectsTable({
                         {followupTimestamps?.[p.id]
                           ? formatFollowup(followupTimestamps[p.id])
                           : p.next_followup_at
-                            ? `Rappel — ${new Date(p.next_followup_at).toLocaleDateString("fr-FR")}`
+                            ? `Rappel — ${new Date(p.next_followup_at).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`
                             : "—"}
                       </td>
                       <td className="px-4 py-3">
@@ -396,7 +397,7 @@ export function ProspectsTable({
                       <p>
                         {followupTimestamps?.[p.id]
                           ? `Relance : ${formatFollowup(followupTimestamps[p.id])}`
-                          : `Rappel — ${new Date(p.next_followup_at!).toLocaleDateString("fr-FR")}`}
+                          : `Rappel — ${new Date(p.next_followup_at!).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
                       </p>
                     )}
                   </div>

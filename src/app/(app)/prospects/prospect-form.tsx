@@ -173,6 +173,7 @@ export function ProspectForm({
                 name="next_followup_at"
                 defaultValue={prospect?.next_followup_at ? toDateTimeLocal(prospect.next_followup_at) : ""}
                 min={nowDateTimeLocal()}
+                suppressHydrationWarning
                 aria-invalid={!!fieldErrors.next_followup_at}
                 aria-describedby={fieldErrors.next_followup_at ? errId("next_followup_at") : undefined}
                 className={cn(

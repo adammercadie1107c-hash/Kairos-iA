@@ -200,6 +200,7 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
                 Relance :{" "}
                 {new Date(prospect.next_followup_at).toLocaleDateString(
                   "fr-FR",
+                  { timeZone: "Europe/Paris" },
                 )}
               </span>
             )}

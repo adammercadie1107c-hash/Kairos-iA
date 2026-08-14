@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Trophy, XCircle, Bot, X, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,11 +41,15 @@ export function ProspectQuickActions({
   nextFollowupAt: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [followupDate, setFollowupDate] = useState(
-    nextFollowupAt ? toDateTimeLocal(nextFollowupAt) : defaultDateTimeLocal(),
-  );
+  const [followupDate, setFollowupDate] = useState("");
   const [followupError, setFollowupError] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    setFollowupDate(
+      nextFollowupAt ? toDateTimeLocal(nextFollowupAt) : defaultDateTimeLocal(),
+    );
+  }, [nextFollowupAt]);
 
   function handleMarkWon() {
     startTransition(async () => {
