@@ -18,6 +18,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import { logout } from "../(auth)/actions";
+import { openCookieSettings } from "../cookie-banner";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -75,6 +76,13 @@ export function Sidebar({ user, pendingAlerts = 0 }: { user: User; pendingAlerts
           <div className="mb-2 truncate px-3 text-xs text-gray-500">
             {user.email}
           </div>
+          <button
+            type="button"
+            onClick={() => openCookieSettings()}
+            className="w-full px-3 py-1 text-left text-xs text-gray-400 hover:text-gray-600"
+          >
+            Gérer mes cookies
+          </button>
           <form action={logout}>
             <button
               type="submit"

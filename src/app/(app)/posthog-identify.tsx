@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { identifyUser } from "@/lib/analytics/posthog-client";
+import { identifyUser, onPostHogReady } from "@/lib/analytics/posthog-client";
 
 export function PostHogIdentify({
   userId,
@@ -11,7 +11,10 @@ export function PostHogIdentify({
   email?: string;
 }) {
   useEffect(() => {
-    identifyUser(userId, email);
+    const unregister = onPostHogReady(() => {
+      identifyUser(userId, email);
+    });
+    return unregister;
   }, [userId, email]);
 
   return null;

@@ -4,6 +4,7 @@ import type { PostHog } from "posthog-js";
 
 let initialized = false;
 let posthog: PostHog | null = null;
+let onInitCallbacks: Array<() => void> = [];
 
 export async function initPostHog(): Promise<void> {
   if (initialized) return;
@@ -38,9 +39,24 @@ export async function initPostHog(): Promise<void> {
         posthog.get_session_replay_url(),
       );
     }
+
+    const cbs = onInitCallbacks;
+    onInitCallbacks = [];
+    cbs.forEach((cb) => cb());
   } catch {
     // never break the app
   }
+}
+
+export function onPostHogReady(callback: () => void): () => void {
+  if (initialized) {
+    callback();
+    return () => {};
+  }
+  onInitCallbacks.push(callback);
+  return () => {
+    onInitCallbacks = onInitCallbacks.filter((cb) => cb !== callback);
+  };
 }
 
 export function identifyUser(userId: string, email?: string): void {
@@ -76,6 +92,16 @@ export function trackEvent(
   try {
     if (!initialized || !posthog) return;
     posthog.capture(event, properties);
+  } catch {
+    // ignore
+  }
+}
+
+export function optOutPostHog(): void {
+  try {
+    if (!posthog) return;
+    posthog.opt_out_capturing();
+    posthog.stopSessionRecording();
   } catch {
     // ignore
   }

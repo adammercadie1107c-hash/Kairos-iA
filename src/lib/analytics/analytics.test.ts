@@ -246,10 +246,13 @@ describe("PostHog: Session Replay", () => {
     expect(clientSource).toContain("maskAllInputs: true");
   });
 
-  it("does not contain any recording disablers", () => {
+  it("init config does not disable recording", () => {
     expect(clientSource).not.toContain("disable_session_recording: true");
-    expect(clientSource).not.toContain("opt_out_capturing");
-    expect(clientSource).not.toContain("stopSessionRecording");
+  });
+
+  it("optOutPostHog stops capturing and recording", () => {
+    expect(clientSource).toContain("opt_out_capturing");
+    expect(clientSource).toContain("stopSessionRecording");
   });
 
   it("startSessionRecording is called after identify", () => {
@@ -271,6 +274,63 @@ describe("PostHog: Session Replay", () => {
   it("init runs only once (guard flag)", () => {
     expect(clientSource).toContain("if (initialized) return");
     expect(clientSource).toContain("initialized = true");
+  });
+});
+
+const consentSource = readFileSync(
+  join(__dirname, "consent.ts"),
+  "utf-8",
+);
+
+const cookieBannerSource = readFileSync(
+  join(__dirname, "../../app/cookie-banner.tsx"),
+  "utf-8",
+);
+
+const cookieActionsSource = readFileSync(
+  join(__dirname, "../../app/cookie-actions.ts"),
+  "utf-8",
+);
+
+describe("RGPD: cookie consent controls PostHog", () => {
+  it("consent module persists to localStorage", () => {
+    expect(consentSource).toContain("localStorage.setItem");
+    expect(consentSource).toContain("localStorage.getItem");
+    expect(consentSource).toContain("kairos_cookie_consent");
+  });
+
+  it("consent module returns null when no choice made", () => {
+    expect(consentSource).toContain("return null");
+  });
+
+  it("resetConsent removes localStorage key", () => {
+    expect(consentSource).toContain("localStorage.removeItem");
+  });
+
+  it("PostHogProvider only inits when consent is accepted", () => {
+    expect(providerSource).toContain("getConsent");
+    expect(providerSource).toContain('"accepted"');
+  });
+
+  it("cookie banner calls initPostHog on accept", () => {
+    expect(cookieBannerSource).toContain("initPostHog");
+  });
+
+  it("cookie banner calls optOutPostHog on decline", () => {
+    expect(cookieBannerSource).toContain("optOutPostHog");
+  });
+
+  it("cookie banner persists consent to Supabase", () => {
+    expect(cookieBannerSource).toContain("saveCookieConsent");
+  });
+
+  it("cookie actions upserts to cookie_consents table", () => {
+    expect(cookieActionsSource).toContain("cookie_consents");
+    expect(cookieActionsSource).toContain("upsert");
+  });
+
+  it("cookie banner is in root layout", () => {
+    expect(rootLayoutSource).toContain("CookieBanner");
   });
 });
 

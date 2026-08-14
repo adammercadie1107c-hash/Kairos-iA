@@ -132,6 +132,13 @@ export interface ScheduledEvent {
   created_at: string;
 }
 
+export interface CookieConsent {
+  id: string;
+  user_id: string;
+  analytics_accepted: boolean;
+  consented_at: string;
+}
+
 export type CoachAlertType =
   | "human_confirmation"
   | "handoff"

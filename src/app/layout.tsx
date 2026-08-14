@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PostHogProvider } from "./posthog-provider";
+import { CookieBanner } from "./cookie-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,6 +31,7 @@ export default function RootLayout({
     >
       <body className="h-full">
         <PostHogProvider>{children}</PostHogProvider>
+        <CookieBanner />
       </body>
     </html>
   );
