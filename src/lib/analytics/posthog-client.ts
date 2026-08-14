@@ -20,9 +20,21 @@ export function initPostHog(): void {
       autocapture: true,
       capture_pageleave: true,
       persistence: "localStorage+cookie",
+      disable_session_recording: false,
+      session_recording: {
+        maskAllInputs: true,
+        maskTextSelector: "[data-ph-mask]",
+      },
       enable_recording_console_log: false,
     });
     initialized = true;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        "[PostHog] initialized — session replay URL:",
+        posthog.get_session_replay_url(),
+      );
+    }
   } catch {
     // never break the app
   }
@@ -32,6 +44,14 @@ export function identifyUser(userId: string, email?: string): void {
   try {
     if (!initialized) return;
     posthog.identify(userId, email ? { email } : {});
+    posthog.startSessionRecording();
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        "[PostHog] identified + recording started — replay URL:",
+        posthog.get_session_replay_url(),
+      );
+    }
   } catch {
     // ignore
   }

@@ -236,6 +236,44 @@ describe("PostHog: no sensitive data sent", () => {
   });
 });
 
+describe("PostHog: Session Replay", () => {
+  it("session recording is explicitly enabled in init config", () => {
+    expect(clientSource).toContain("disable_session_recording: false");
+  });
+
+  it("session_recording config with input masking is present", () => {
+    expect(clientSource).toContain("session_recording:");
+    expect(clientSource).toContain("maskAllInputs: true");
+  });
+
+  it("does not contain any recording disablers", () => {
+    expect(clientSource).not.toContain("disable_session_recording: true");
+    expect(clientSource).not.toContain("opt_out_capturing");
+    expect(clientSource).not.toContain("stopSessionRecording");
+  });
+
+  it("startSessionRecording is called after identify", () => {
+    const identifySection = clientSource.slice(
+      clientSource.indexOf("function identifyUser"),
+      clientSource.indexOf("function resetUser"),
+    );
+    expect(identifySection).toContain("posthog.identify(userId");
+    expect(identifySection).toContain("posthog.startSessionRecording()");
+    const identifyIdx = identifySection.indexOf("posthog.identify");
+    const startIdx = identifySection.indexOf("posthog.startSessionRecording");
+    expect(startIdx).toBeGreaterThan(identifyIdx);
+  });
+
+  it("dev logs include session replay URL", () => {
+    expect(clientSource).toContain("get_session_replay_url()");
+  });
+
+  it("init runs only once (guard flag)", () => {
+    expect(clientSource).toContain("if (initialized) return");
+    expect(clientSource).toContain("initialized = true");
+  });
+});
+
 describe("PostHog: events are sent once per action", () => {
   it("signup tracks user_signed_up once", () => {
     const matches = authActionsSource.match(/USER_SIGNED_UP/g);
