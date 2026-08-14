@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "./sidebar";
+import { PostHogIdentify } from "./posthog-identify";
 
 export default async function AppLayout({
   children,
@@ -24,6 +25,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen bg-gray-50">
+      <PostHogIdentify userId={user.id} email={user.email} />
       <Sidebar user={user} pendingAlerts={pendingAlerts ?? 0} />
       <main className="flex-1 overflow-auto pt-12 pb-14 md:pt-0 md:pb-0">{children}</main>
     </div>

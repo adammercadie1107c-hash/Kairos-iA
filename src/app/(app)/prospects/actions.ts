@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 import { syncFollowupDate } from "@/lib/followups/sync-followup-date";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import type { ProspectStatus } from "@/lib/supabase/types";
 
 const VALID_STATUSES: ProspectStatus[] = [
@@ -129,6 +131,10 @@ export async function createProspect(formData: FormData): Promise<ActionResult> 
     return { error: error.message };
   }
 
+  trackServerEvent(user.id, AnalyticsEvents.PROSPECT_CREATED, {
+    source: "manual",
+  });
+
   revalidatePath("/prospects");
   revalidatePath("/dashboard");
   revalidatePath("/relances");
@@ -225,6 +231,14 @@ export async function markProspectStatus(
     .eq("user_id", user.id);
 
   if (error) return { error: error.message };
+
+  trackServerEvent(
+    user.id,
+    status === "gagne"
+      ? AnalyticsEvents.PROSPECT_MARKED_WON
+      : AnalyticsEvents.PROSPECT_MARKED_LOST,
+    { prospect_id: id },
+  );
 
   revalidatePath("/prospects");
   revalidatePath(`/prospects/${id}`);

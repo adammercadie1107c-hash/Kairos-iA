@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 
 export async function signup(formData: FormData) {
   const supabase = await createClient();
@@ -57,6 +59,10 @@ export async function signup(formData: FormData) {
     if (!data.session) {
       await supabase.auth.signInWithPassword({ email, password });
     }
+
+    trackServerEvent(data.user.id, AnalyticsEvents.USER_SIGNED_UP, {
+      email,
+    });
   }
 
   redirect("/dashboard");

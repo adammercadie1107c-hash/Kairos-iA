@@ -5,6 +5,8 @@ import {
   exchangeForLongLivedToken,
   getInstagramUserInfo,
 } from "@/lib/instagram/oauth";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import type { InstagramCredentials } from "@/lib/instagram/types";
 
 export async function GET(request: NextRequest) {
@@ -106,6 +108,10 @@ export async function GET(request: NextRequest) {
       console.error("Channel upsert error:", upsertError);
       return redirectWithError("db_error");
     }
+
+    trackServerEvent(user.id, AnalyticsEvents.INSTAGRAM_CONNECTED, {
+      source: "instagram",
+    });
   } catch (err) {
     console.error("Instagram OAuth flow error:", err);
     return redirectWithError("oauth_failed");
