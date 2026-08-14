@@ -1,10 +1,11 @@
 "use client";
 
-import posthog from "posthog-js";
+import type { PostHog } from "posthog-js";
 
 let initialized = false;
+let posthog: PostHog | null = null;
 
-export function initPostHog(): void {
+export async function initPostHog(): Promise<void> {
   if (initialized) return;
   if (typeof window === "undefined") return;
 
@@ -13,6 +14,8 @@ export function initPostHog(): void {
   if (!key || !host) return;
 
   try {
+    const mod = await import("posthog-js");
+    posthog = mod.default;
     posthog.init(key, {
       api_host: host,
       person_profiles: "identified_only",
@@ -42,7 +45,7 @@ export function initPostHog(): void {
 
 export function identifyUser(userId: string, email?: string): void {
   try {
-    if (!initialized) return;
+    if (!initialized || !posthog) return;
     posthog.identify(userId, email ? { email } : {});
     posthog.startSessionRecording();
 
@@ -59,7 +62,7 @@ export function identifyUser(userId: string, email?: string): void {
 
 export function resetUser(): void {
   try {
-    if (!initialized) return;
+    if (!initialized || !posthog) return;
     posthog.reset();
   } catch {
     // ignore
@@ -71,7 +74,7 @@ export function trackEvent(
   properties?: Record<string, unknown>,
 ): void {
   try {
-    if (!initialized) return;
+    if (!initialized || !posthog) return;
     posthog.capture(event, properties);
   } catch {
     // ignore
