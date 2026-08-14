@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import { z } from "zod";
 
 const FaqItemSchema = z.object({
@@ -101,6 +103,8 @@ export async function saveAgentConfig(
   if (error) {
     return { error: "Erreur lors de la sauvegarde : " + error.message };
   }
+
+  trackServerEvent(user.id, AnalyticsEvents.AGENT_CONFIGURED);
 
   revalidatePath("/agent");
   return { success: true };

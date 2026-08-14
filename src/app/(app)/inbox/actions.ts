@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canTransitionStatus } from "@/lib/conversations/status-machine";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import type { ConversationStatus } from "@/lib/supabase/types";
 
 const COMMERCIAL_STATUSES: ConversationStatus[] = ["qualified", "booking_sent"];
@@ -18,6 +20,10 @@ export async function toggleAi(conversationId: string, enable: boolean) {
   const updates: Record<string, unknown> = { ai_enabled: enable };
   if (!enable) {
     updates.status = "handoff";
+    trackServerEvent(user.id, AnalyticsEvents.HANDOFF_TRIGGERED, {
+      conversation_id: conversationId,
+      source: "manual",
+    });
   } else {
     const { data: conv } = await supabase
       .from("conversations")

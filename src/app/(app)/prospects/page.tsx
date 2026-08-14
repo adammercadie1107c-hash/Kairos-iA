@@ -47,6 +47,8 @@ export default async function ProspectsPage({
   const contactInfoMap: Record<string, Record<string, string>> = {};
   const convStatusMap: Record<string, string> = {};
 
+  const contactToConvId: Record<string, string> = {};
+
   if (contactIds.length > 0) {
     const { data: contacts } = await supabase
       .from("contacts")
@@ -59,7 +61,7 @@ export default async function ProspectsPage({
 
     const { data: conversations } = await supabase
       .from("conversations")
-      .select("contact_id, status")
+      .select("id, contact_id, status")
       .eq("user_id", user.id)
       .in("contact_id", contactIds)
       .neq("status", "closed");
@@ -67,6 +69,35 @@ export default async function ProspectsPage({
     for (const conv of conversations ?? []) {
       if (conv.contact_id && !convStatusMap[conv.contact_id]) {
         convStatusMap[conv.contact_id] = conv.status;
+        contactToConvId[conv.contact_id] = conv.id;
+      }
+    }
+  }
+
+  const followupTimestamps: Record<string, string> = {};
+  const convIds = Object.values(contactToConvId);
+  if (convIds.length > 0) {
+    const { data: pendingEvents } = await supabase
+      .from("scheduled_events")
+      .select("conversation_id, scheduled_at")
+      .in("conversation_id", convIds)
+      .is("executed_at", null)
+      .eq("cancelled", false)
+      .eq("type", "followup");
+
+    const convToContact: Record<string, string> = {};
+    for (const [contactId, convId] of Object.entries(contactToConvId)) {
+      convToContact[convId] = contactId;
+    }
+
+    for (const evt of pendingEvents ?? []) {
+      const contactId = convToContact[evt.conversation_id];
+      if (!contactId) continue;
+      const prospect = prospects.find((p) => p.contact_id === contactId);
+      if (!prospect) continue;
+      const existing = followupTimestamps[prospect.id];
+      if (!existing || evt.scheduled_at < existing) {
+        followupTimestamps[prospect.id] = evt.scheduled_at;
       }
     }
   }
@@ -88,6 +119,7 @@ export default async function ProspectsPage({
         <ProspectsTable
           prospects={prospects}
           scores={scores}
+          followupTimestamps={followupTimestamps}
           autoOpen={params.new === "1"}
         />
       </div>

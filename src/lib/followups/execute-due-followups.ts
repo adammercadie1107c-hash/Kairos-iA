@@ -4,6 +4,8 @@ import type {
   Message,
   ScheduledEvent,
 } from "@/lib/supabase/types";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import type { FollowupTransport, SendFollowupResult } from "./transport";
 
 const DEFAULT_BATCH_SIZE = 5;
@@ -286,6 +288,11 @@ async function processEvent(
       .from("scheduled_events")
       .update({ executed_at: nowIso, processing_at: null })
       .eq("id", event.id);
+
+    trackServerEvent(conversation.user_id, AnalyticsEvents.FOLLOWUP_SENT, {
+      conversation_id: conversation.id,
+      followup_number: followupNumber,
+    });
 
     // Schedule next followup in the chain if conditions are met
     let nextFollowupAt: string | null = null;

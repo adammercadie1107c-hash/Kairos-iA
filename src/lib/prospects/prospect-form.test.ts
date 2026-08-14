@@ -27,6 +27,11 @@ const quickActionsSource = readFileSync(
   "utf-8",
 );
 
+const listPageSource = readFileSync(
+  join(__dirname, "../../app/(app)/prospects/page.tsx"),
+  "utf-8",
+);
+
 describe("prospect: first_name is optional", () => {
   it("form does not pass required to first_name FormField", () => {
     const firstNameIdx = formSource.indexOf('name="first_name"');
@@ -150,5 +155,107 @@ describe("prospect: followup date management", () => {
 
   it("detail page shows full datetime for pending followup", () => {
     expect(detailSource).toContain("formatDateTime(pendingFollowupAt)");
+  });
+});
+
+describe("prospect: relance auto vs rappel coach", () => {
+  it("ActionResult includes reminder_only field", () => {
+    expect(actionsSource).toContain("reminder_only?: boolean");
+  });
+
+  it("updateFollowupDate returns reminder_only when no_linked_contact", () => {
+    const updateFollowupSection = actionsSource.slice(
+      actionsSource.indexOf("async function updateFollowupDate"),
+      actionsSource.indexOf("async function cancelFollowup"),
+    );
+    expect(updateFollowupSection).toContain("syncResult.reason === \"no_linked_contact\"");
+    expect(updateFollowupSection).toContain("reminder_only: true");
+  });
+
+  it("updateProspect returns reminder_only when no_linked_contact", () => {
+    const updateSection = actionsSource.slice(
+      actionsSource.indexOf("async function updateProspect"),
+      actionsSource.indexOf("async function deleteProspect"),
+    );
+    expect(updateSection).toContain("syncResult.reason === \"no_linked_contact\"");
+    expect(updateSection).toContain("reminder_only: true");
+  });
+
+  it("quick actions shows 'Relance automatique' when conversationId exists", () => {
+    expect(quickActionsSource).toContain("Relance automatique");
+    const relanceSection = quickActionsSource.slice(
+      quickActionsSource.indexOf("Relance automatique"),
+    );
+    expect(relanceSection).toContain("datetime-local");
+  });
+
+  it("quick actions shows 'Rappel coach' when no conversationId", () => {
+    expect(quickActionsSource).toContain("Rappel coach");
+    expect(quickActionsSource).toContain(
+      "Aucune conversation Instagram liée",
+    );
+  });
+
+  it("quick actions shows reminder_only feedback", () => {
+    expect(quickActionsSource).toContain("reminderOnly");
+    expect(quickActionsSource).toContain("aucun DM automatique ne sera envoyé");
+  });
+
+  it("prospect form handles reminder_only feedback", () => {
+    expect(formSource).toContain("reminderOnly");
+    expect(formSource).toContain("result.reminder_only");
+    expect(formSource).toContain("aucun DM automatique ne sera envoyé");
+  });
+
+  it("table shows 'Rappel' prefix for manual prospect followup", () => {
+    expect(tableSource).toContain("Rappel —");
+  });
+
+  it("table shows relance datetime from followupTimestamps (no Rappel prefix)", () => {
+    const desktopCell = tableSource.slice(
+      tableSource.indexOf("followupTimestamps?.[p.id]"),
+    );
+    const firstTernary = desktopCell.slice(0, desktopCell.indexOf("</td>"));
+    expect(firstTernary).toContain("formatFollowup");
+    expect(firstTernary).toContain("Rappel —");
+  });
+});
+
+describe("prospect list: followup column shows datetime from scheduled_events", () => {
+  it("list page fetches pending scheduled_events for conversations", () => {
+    expect(listPageSource).toContain("scheduled_events");
+    expect(listPageSource).toContain('is("executed_at", null)');
+    expect(listPageSource).toContain('eq("cancelled", false)');
+    expect(listPageSource).toContain('eq("type", "followup")');
+  });
+
+  it("list page builds followupTimestamps map", () => {
+    expect(listPageSource).toContain("followupTimestamps");
+    expect(listPageSource).toContain("followupTimestamps[prospect.id]");
+  });
+
+  it("list page passes followupTimestamps to ProspectsTable", () => {
+    expect(listPageSource).toContain("followupTimestamps={followupTimestamps}");
+  });
+
+  it("table accepts followupTimestamps prop", () => {
+    expect(tableSource).toContain("followupTimestamps");
+  });
+
+  it("table uses followupTimestamps for display with date+time format", () => {
+    expect(tableSource).toContain("formatFollowup");
+    expect(tableSource).toContain("followupTimestamps?.[p.id]");
+  });
+
+  it("table sort uses followupTimestamps when available", () => {
+    expect(tableSource).toContain("followupTimestamps?.[a.id]");
+    expect(tableSource).toContain("followupTimestamps?.[b.id]");
+  });
+
+  it("formatFollowup renders date + time in fr-FR locale", () => {
+    expect(tableSource).toContain("function formatFollowup");
+    expect(tableSource).toContain('"2-digit"');
+    expect(tableSource).toContain("hour:");
+    expect(tableSource).toContain("minute:");
   });
 });

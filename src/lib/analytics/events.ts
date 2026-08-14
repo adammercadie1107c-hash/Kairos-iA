@@ -1,0 +1,15 @@
+export const AnalyticsEvents = {
+  USER_SIGNED_UP: "user_signed_up",
+  INSTAGRAM_CONNECTED: "instagram_connected",
+  AGENT_CONFIGURED: "agent_configured",
+  CONVERSATION_RECEIVED: "conversation_received",
+  PROSPECT_CREATED: "prospect_created",
+  PROSPECT_QUALIFIED: "prospect_qualified",
+  BOOKING_SENT: "booking_sent",
+  HANDOFF_TRIGGERED: "handoff_triggered",
+  FOLLOWUP_SCHEDULED: "followup_scheduled",
+  FOLLOWUP_SENT: "followup_sent",
+  COACH_ALERT_CREATED: "coach_alert_created",
+  PROSPECT_MARKED_WON: "prospect_marked_won",
+  PROSPECT_MARKED_LOST: "prospect_marked_lost",
+} as const;

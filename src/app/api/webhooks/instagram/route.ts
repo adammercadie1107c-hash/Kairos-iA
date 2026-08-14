@@ -9,6 +9,8 @@ import { syncContactToProspect } from "@/lib/sync/contact-to-prospect";
 import { detectCommercialIntent } from "@/lib/sync/commercial-intent";
 import { checkProspectFit } from "@/lib/agent/fit-check";
 import { ensureFollowupScheduled } from "@/lib/followups/ensure-followup";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import type { IGWebhookPayload, InstagramCredentials } from "@/lib/instagram/types";
 import type { AgentConfig, Message, ConversationStatus } from "@/lib/supabase/types";
 
@@ -272,6 +274,11 @@ async function handleInboundMessage(
     content: text,
   });
 
+  trackServerEvent(userId, AnalyticsEvents.CONVERSATION_RECEIVED, {
+    conversation_id: conversationId,
+    source: "instagram",
+  });
+
   if (!process.env.ANTHROPIC_API_KEY) return "no_api_key";
 
   // Load conversation history
@@ -309,6 +316,13 @@ async function handleInboundMessage(
     offer: (config as AgentConfig).offer,
     qualificationRules: (config as AgentConfig).qualification_rules,
   });
+
+  if (decision.action === "send_booking" && prospectFit === "FIT") {
+    trackServerEvent(userId, AnalyticsEvents.BOOKING_SENT, {
+      conversation_id: conversationId,
+      source: "instagram",
+    });
+  }
 
   if (decision.action === "send_booking" && prospectFit !== "FIT") {
     console.warn(`[webhook] booking gate: blocked send_booking (fit=${prospectFit})`);
@@ -372,6 +386,13 @@ async function handleInboundMessage(
     }
   }
 
+  if (decision.action === "escalate") {
+    trackServerEvent(userId, AnalyticsEvents.HANDOFF_TRIGGERED, {
+      conversation_id: conversationId,
+      source: "instagram",
+    });
+  }
+
   // Create coach alert for request_human_confirmation
   if (decision.action === "request_human_confirmation") {
     const alertType = decision.reason_code === "commercial_unknown"
@@ -390,6 +411,11 @@ async function handleInboundMessage(
         source: "instagram",
       },
     });
+
+    trackServerEvent(userId, AnalyticsEvents.COACH_ALERT_CREATED, {
+      conversation_id: conversationId,
+      alert_type: alertType,
+    });
   }
 
   // Create coach alert on escalate/handoff
@@ -405,6 +431,11 @@ async function handleInboundMessage(
         reason_code: decision.reason_code,
         source: "instagram",
       },
+    });
+
+    trackServerEvent(userId, AnalyticsEvents.COACH_ALERT_CREATED, {
+      conversation_id: conversationId,
+      alert_type: "handoff",
     });
   }
 
@@ -429,6 +460,11 @@ async function handleInboundMessage(
           conversation_id: conversationId,
           type: "followup",
           scheduled_at: followupIso,
+        });
+
+        trackServerEvent(userId, AnalyticsEvents.FOLLOWUP_SCHEDULED, {
+          conversation_id: conversationId,
+          source: "instagram",
         });
 
         updates.next_followup_at = followupIso;
@@ -457,9 +493,24 @@ async function handleInboundMessage(
 
   if (intent.hasIntent) {
     try {
-      await syncContactToProspect(supabase, conversationId, userId, {
+      const syncResult = await syncContactToProspect(supabase, conversationId, userId, {
         prospectStatus: intent.prospectStatus,
       });
+
+      if (syncResult.action === "created") {
+        trackServerEvent(userId, AnalyticsEvents.PROSPECT_CREATED, {
+          prospect_id: syncResult.prospectId,
+          source: "instagram",
+        });
+      }
+
+      if (intent.prospectStatus === "contacte" || intent.prospectStatus === "a_relancer") {
+        trackServerEvent(userId, AnalyticsEvents.PROSPECT_QUALIFIED, {
+          prospect_id: syncResult.prospectId,
+          status: intent.prospectStatus,
+          source: "instagram",
+        });
+      }
     } catch (syncErr) {
       console.error("Contact-to-prospect sync error:", syncErr);
     }

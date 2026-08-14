@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 import { syncFollowupDate } from "@/lib/followups/sync-followup-date";
+import { trackServerEvent } from "@/lib/analytics/posthog-server";
+import { AnalyticsEvents } from "@/lib/analytics/events";
 import type { ProspectStatus } from "@/lib/supabase/types";
 
 const VALID_STATUSES: ProspectStatus[] = [
@@ -24,6 +26,7 @@ interface ActionResult {
   error?: string;
   fieldErrors?: Record<string, string>;
   success?: boolean;
+  reminder_only?: boolean;
 }
 
 function validateForm(formData: FormData, existingId?: string): {
@@ -128,6 +131,10 @@ export async function createProspect(formData: FormData): Promise<ActionResult> 
     return { error: error.message };
   }
 
+  trackServerEvent(user.id, AnalyticsEvents.PROSPECT_CREATED, {
+    source: "manual",
+  });
+
   revalidatePath("/prospects");
   revalidatePath("/dashboard");
   revalidatePath("/relances");
@@ -164,7 +171,7 @@ export async function updateProspect(id: string, formData: FormData): Promise<Ac
     ? new Date(validation.fields.next_followup_at).toISOString()
     : null;
 
-  await syncFollowupDate(supabase, {
+  const syncResult = await syncFollowupDate(supabase, {
     prospectId: id,
     userId: user.id,
     dateTimeIso: followupIso,
@@ -174,6 +181,11 @@ export async function updateProspect(id: string, formData: FormData): Promise<Ac
   revalidatePath(`/prospects/${id}`);
   revalidatePath("/dashboard");
   revalidatePath("/relances");
+
+  if (!syncResult.synced && syncResult.reason === "no_linked_contact") {
+    return { success: true, reminder_only: true };
+  }
+
   return { success: true };
 }
 
@@ -219,6 +231,14 @@ export async function markProspectStatus(
     .eq("user_id", user.id);
 
   if (error) return { error: error.message };
+
+  trackServerEvent(
+    user.id,
+    status === "gagne"
+      ? AnalyticsEvents.PROSPECT_MARKED_WON
+      : AnalyticsEvents.PROSPECT_MARKED_LOST,
+    { prospect_id: id },
+  );
 
   revalidatePath("/prospects");
   revalidatePath(`/prospects/${id}`);
@@ -298,7 +318,7 @@ export async function updateFollowupDate(
 
   if (error) return { error: error.message };
 
-  await syncFollowupDate(supabase, {
+  const syncResult = await syncFollowupDate(supabase, {
     prospectId,
     userId: user.id,
     dateTimeIso: scheduledDate.toISOString(),
@@ -308,6 +328,11 @@ export async function updateFollowupDate(
   revalidatePath(`/prospects/${prospectId}`);
   revalidatePath("/dashboard");
   revalidatePath("/relances");
+
+  if (!syncResult.synced && syncResult.reason === "no_linked_contact") {
+    return { success: true, reminder_only: true };
+  }
+
   return { success: true };
 }
 
