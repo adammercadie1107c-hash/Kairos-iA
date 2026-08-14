@@ -5,8 +5,8 @@ let client: PostHog | null = null;
 function getClient(): PostHog | null {
   if (client) return client;
 
-  const apiKey = process.env.POSTHOG_API_KEY;
-  const host = process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
   if (!apiKey || !host) return null;
 

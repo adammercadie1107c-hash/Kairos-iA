@@ -79,8 +79,10 @@ describe("PostHog: app never crashes if PostHog is absent", () => {
     expect(clientSource).toContain("if (!key || !host) return");
   });
 
-  it("server getClient checks for env vars before init", () => {
-    expect(serverSource).toContain("POSTHOG_API_KEY");
+  it("server getClient reuses NEXT_PUBLIC_POSTHOG_KEY (no separate secret)", () => {
+    expect(serverSource).toContain("NEXT_PUBLIC_POSTHOG_KEY");
+    expect(serverSource).toContain("NEXT_PUBLIC_POSTHOG_HOST");
+    expect(serverSource).not.toContain("POSTHOG_API_KEY");
     expect(serverSource).toContain("if (!apiKey || !host) return null");
   });
 
