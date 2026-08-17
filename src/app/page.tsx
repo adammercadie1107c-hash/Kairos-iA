@@ -1,26 +1,26 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "./_landing/navbar";
 import { Hero } from "./_landing/hero";
-import { Problems } from "./_landing/problems";
-import { Target } from "./_landing/target";
+import { Problem } from "./_landing/problem";
+import { Flow } from "./_landing/flow";
+import { Features } from "./_landing/features";
+import { Control } from "./_landing/control";
+import { Crm } from "./_landing/crm";
 import { HowItWorks } from "./_landing/how-it-works";
-import { AiSection } from "./_landing/ai-section";
-import { Product } from "./_landing/product";
-import { Transparency } from "./_landing/transparency";
-import { PilotProgram } from "./_landing/pilot-program";
-import { PilotForm } from "./_landing/pilot-form";
+import { BetaCta } from "./_landing/beta-cta";
 import { Faq } from "./_landing/faq";
 import { Footer } from "./_landing/footer";
 
 export const metadata: Metadata = {
-  title: "Kairos AI — Ne perdez plus vos prospects dans vos DM Instagram",
+  title: "Kairos AI — Transforme tes DM Instagram en clients",
   description:
-    "CRM intelligent pour coachs en nutrition. Kairos centralise vos conversations, qualifie vos prospects par IA et planifie vos relances automatiquement.",
+    "Le setter IA conçu pour les coachs en nutrition. Kairos répond, qualifie et relance automatiquement tes prospects Instagram jusqu'à la prise de rendez-vous.",
   openGraph: {
-    title: "Kairos AI — Ne perdez plus vos prospects dans vos DM Instagram",
+    title: "Kairos AI — Transforme tes DM Instagram en clients",
     description:
-      "CRM intelligent pour coachs en nutrition. Kairos centralise vos conversations, qualifie vos prospects par IA et planifie vos relances automatiquement.",
+      "Le setter IA conçu pour les coachs en nutrition. Kairos répond, qualifie et relance automatiquement tes prospects Instagram jusqu'à la prise de rendez-vous.",
     type: "website",
   },
 };
@@ -31,21 +31,22 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthenticated = !!user;
+  if (user) {
+    redirect("/dashboard");
+  }
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <Navbar isAuthenticated={isAuthenticated} />
+    <div className="min-h-screen bg-white">
+      <Navbar />
       <main>
         <Hero />
-        <Problems />
-        <Target />
+        <Problem />
+        <Flow />
+        <Features />
+        <Control />
+        <Crm />
         <HowItWorks />
-        <AiSection />
-        <Product />
-        <Transparency />
-        <PilotProgram />
-        <PilotForm />
+        <BetaCta />
         <Faq />
       </main>
       <Footer />

@@ -8,23 +8,30 @@ import type { ReactNode } from "react";
 export function CtaButton({
   href,
   location,
+  variant = "primary",
   children,
   className,
 }: {
   href: string;
   location: string;
+  variant?: "primary" | "secondary";
   children: ReactNode;
   className?: string;
 }) {
+  const isPrimary = variant === "primary";
+
   function handleClick() {
-    trackEvent("landing_cta_clicked", {
-      location,
-      destination: href.startsWith("#") ? "application_form" : href,
-    });
+    trackEvent(
+      isPrimary ? "landing_cta_clicked" : "landing_secondary_cta_clicked",
+      { location, destination: href.startsWith("#") ? href : "signup" },
+    );
   }
 
   const styles = cn(
-    "inline-flex items-center justify-center rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-violet-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
+    "inline-flex items-center justify-center rounded-lg px-6 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+    isPrimary
+      ? "bg-violet-600 text-white hover:bg-violet-700 focus-visible:outline-violet-600"
+      : "border border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:outline-gray-400",
     className,
   );
 

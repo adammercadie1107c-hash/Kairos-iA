@@ -4,10 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { trackEvent } from "@/lib/analytics/posthog-client";
 import { CtaButton } from "./cta-button";
 
-export function Navbar({ isAuthenticated }: { isAuthenticated: boolean }) {
+const navLinks = [
+  { href: "#fonctionnalites", label: "Fonctionnalités" },
+  { href: "#comment-ca-marche", label: "Comment ça marche" },
+  { href: "#faq", label: "FAQ" },
+];
+
+export function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -19,59 +24,56 @@ export function Navbar({ isAuthenticated }: { isAuthenticated: boolean }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  function handleLoginClick() {
-    trackEvent("landing_login_clicked", {
-      location: "navbar",
-      destination: "login",
-    });
-  }
-
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-gray-950/95 shadow-lg shadow-black/20 backdrop-blur-sm"
-          : "bg-transparent",
+        "sticky top-0 z-50 bg-white transition-shadow duration-300",
+        scrolled ? "shadow-sm" : "",
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
-          className="flex items-center gap-2.5 text-lg font-bold text-white"
+          className="flex items-center gap-1.5 text-lg font-bold text-gray-900"
         >
-          Kairos
-          <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-violet-400 uppercase">
-            Pilote
+          Kairos{" "}
+          <span className="bg-gradient-to-r from-violet-600 to-violet-500 bg-clip-text text-transparent">
+            AI
           </span>
         </Link>
 
-        <div className="hidden items-center gap-4 md:flex">
-          {isAuthenticated ? (
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
+        <nav className="hidden items-center gap-8 md:flex">
+          {navLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
-              Mon espace
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              onClick={handleLoginClick}
-              className="text-sm font-medium text-gray-400 transition-colors hover:text-white"
-            >
-              Se connecter
-            </Link>
-          )}
-          <CtaButton href="#candidature" location="navbar">
-            Rejoindre le programme pilote
+              {link.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="hidden items-center gap-3 md:flex">
+          <Link
+            href="/login"
+            className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          >
+            Se connecter
+          </Link>
+          <CtaButton
+            href="/signup"
+            location="navbar"
+            className="px-4 py-2 text-sm"
+          >
+            Tester gratuitement
           </CtaButton>
         </div>
 
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-gray-400 hover:bg-gray-800 hover:text-white md:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-gray-100 md:hidden"
           aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -79,36 +81,29 @@ export function Navbar({ isAuthenticated }: { isAuthenticated: boolean }) {
       </div>
 
       {open && (
-        <div className="border-t border-gray-800/60 bg-gray-950 px-4 pb-4 pt-2 md:hidden">
-          <div className="space-y-1">
-            {isAuthenticated ? (
-              <Link
-                href="/dashboard"
+        <div className="border-t border-gray-100 bg-white px-4 pb-4 pt-2 md:hidden">
+          <nav className="space-y-1">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
                 onClick={() => setOpen(false)}
-                className="block rounded-md px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-gray-900"
+                className="block rounded-md px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Mon espace
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                onClick={() => {
-                  setOpen(false);
-                  handleLoginClick();
-                }}
-                className="block rounded-md px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-gray-900"
-              >
-                Se connecter
-              </Link>
-            )}
-          </div>
-          <div className="mt-3 border-t border-gray-800/60 pt-3">
-            <CtaButton
-              href="#candidature"
-              location="navbar"
-              className="w-full"
+                {link.label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+            <Link
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="block rounded-md px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Rejoindre le programme pilote
+              Se connecter
+            </Link>
+            <CtaButton href="/signup" location="navbar" className="w-full">
+              Tester gratuitement
             </CtaButton>
           </div>
         </div>

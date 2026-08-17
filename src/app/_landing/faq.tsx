@@ -7,24 +7,24 @@ import { AnimateIn } from "./animate-in";
 
 const items = [
   {
-    q: "L'intégration Instagram est-elle déjà fonctionnelle ?",
-    a: "L'intégration Instagram est en cours de développement. Le CRM, les relances, le dashboard et l'inbox sont opérationnels. L'analyse IA est en phase de test. Nous sommes transparents sur l'avancement — consultez la section « Où en est le produit » sur cette page.",
+    q: "Est-ce que Kairos répond vraiment directement sur Instagram ?",
+    a: "Oui. Kairos se connecte à ton compte Instagram professionnel via l'API officielle Meta et envoie les réponses directement en DM, comme si tu répondais toi-même.",
   },
   {
-    q: "Quand commence le programme pilote ?",
-    a: "Le programme pilote démarre dès que votre candidature est acceptée. Vous aurez 30 jours d'utilisation gratuite à compter de l'activation réelle de votre compte, pas de la date de candidature.",
+    q: "Puis-je reprendre la main sur une conversation ?",
+    a: "Absolument. Tu peux désactiver l'IA sur n'importe quelle conversation depuis l'Inbox et répondre toi-même. Kairos peut aussi te transmettre automatiquement les conversations qui nécessitent ton intervention.",
   },
   {
-    q: "Faut-il déjà recevoir des DM pour utiliser Kairos ?",
-    a: "Pas nécessairement. Kairos inclut un CRM prospects que vous pouvez utiliser indépendamment des DM Instagram. C'est un outil complet de gestion de vos prospects, pas uniquement un assistant de messagerie.",
+    q: "Est-ce que Kairos remplace complètement un setter ?",
+    a: "Kairos gère la première prise de contact, la qualification et les relances. Pour les échanges complexes ou sensibles, il transmet la conversation au coach. C'est un assistant, pas un remplaçant.",
   },
   {
-    q: "Combien coûtera Kairos après les 30 jours ?",
-    a: "Le tarif n'est pas encore fixé. Les participants au programme pilote bénéficieront d'un tarif fondateur préférentiel lorsque la version payante sera lancée. Aucune carte bancaire n'est demandée pendant le pilote.",
+    q: "Que se passe-t-il si Kairos ne connaît pas une réponse ?",
+    a: "Kairos ne fabrique jamais d'information. S'il ne peut pas répondre avec certitude, il te remonte la question via une alerte pour que tu puisses intervenir.",
   },
   {
-    q: "Que se passe-t-il à la fin des 30 jours ?",
-    a: "Nous vous préviendrons avant la fin de la période. Vous pourrez choisir de continuer avec le tarif fondateur ou d'arrêter sans engagement. Vos données restent accessibles.",
+    q: "Combien de temps dure l'accès bêta ?",
+    a: "L'accès bêta est gratuit pendant 60 jours. Aucune carte bancaire n'est demandée. Tu peux tester Kairos sur tes vrais DM sans engagement.",
   },
 ];
 
@@ -32,15 +32,15 @@ export function Faq() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="bg-gray-900 py-20 md:py-28">
+    <section id="faq" className="bg-white py-20 md:py-28">
       <div className="mx-auto max-w-2xl px-4 sm:px-6">
         <AnimateIn>
-          <h2 className="text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Questions fréquentes
           </h2>
         </AnimateIn>
 
-        <div className="mt-12 divide-y divide-gray-800">
+        <div className="mt-12 divide-y divide-gray-200">
           {items.map((item, i) => {
             const isOpen = openIndex === i;
             return (
@@ -52,7 +52,7 @@ export function Faq() {
                     className="flex w-full items-start justify-between gap-4 py-5 text-left"
                     aria-expanded={isOpen}
                   >
-                    <span className="text-sm font-semibold text-white">
+                    <span className="text-sm font-semibold text-gray-900">
                       {item.q}
                     </span>
                     <ChevronDown
@@ -69,7 +69,7 @@ export function Faq() {
                     )}
                   >
                     <div className="overflow-hidden">
-                      <p className="pb-5 text-sm leading-relaxed text-gray-400">
+                      <p className="pb-5 text-sm leading-relaxed text-gray-600">
                         {item.a}
                       </p>
                     </div>
