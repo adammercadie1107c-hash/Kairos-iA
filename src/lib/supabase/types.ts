@@ -160,3 +160,18 @@ export interface CoachAlert {
   created_at: string;
   resolved_at: string | null;
 }
+
+export type PilotApplicationStatus = "pending" | "accepted" | "rejected";
+
+export interface PilotApplication {
+  id: string;
+  first_name: string;
+  email: string;
+  instagram_handle: string;
+  coaching_type: string;
+  price_range: string | null;
+  weekly_dms: string | null;
+  current_process: string | null;
+  status: PilotApplicationStatus;
+  created_at: string;
+}
